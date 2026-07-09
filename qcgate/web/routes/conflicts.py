@@ -88,9 +88,12 @@ async def resolve_as_new_iteration(
             detail=f"File no longer exists on disk: {filepath}"
         )
 
-    # Extract metadata
+    # Extract metadata and loudness
     ffprobe_path = config.get("ffprobe_path")
+    ffmpeg_path = config.get("ffmpeg_path")
     metadata = extract_metadata(filepath, ffprobe_path)
+    from qcgate.ffprobe import measure_loudness
+    loudness = measure_loudness(filepath, ffmpeg_path)
 
     # Create new iteration
     conn = get_connection()
@@ -105,14 +108,15 @@ async def resolve_as_new_iteration(
 
     conn.execute("""
         INSERT INTO iterations
-            (master_id, iteration_number, status, exported_at,
-             codec, resolution, framerate, duration, audio_channels, scan_type)
-        VALUES (?, ?, 'Awaiting QC', datetime('now'), ?, ?, ?, ?, ?, ?)
+            (master_id, iteration_number, status, exported_at, file_path,
+             codec, resolution, framerate, duration, audio_channels, scan_type, loudness)
+        VALUES (?, ?, 'Awaiting QC', datetime('now'), ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
-        master_id, new_iteration,
+        master_id, new_iteration, filepath,
         metadata.get("codec"), metadata.get("resolution"),
         metadata.get("framerate"), metadata.get("duration"),
         metadata.get("audio_channels"), metadata.get("scan_type"),
+        loudness,
     ))
 
     conn.execute("""
