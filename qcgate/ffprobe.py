@@ -128,3 +128,37 @@ def extract_metadata(filepath: str, ffprobe_path: str) -> Dict[str, Optional[str
     except Exception as e:
         logger.error(f"Unexpected error running ffprobe on {filepath}: {e}")
         return empty
+
+
+def measure_loudness(filepath: str, ffmpeg_path: str) -> Optional[str]:
+    """
+    Measure integrated loudness (LUFS) using ffmpeg's ebur128 filter.
+    Returns a string like '-23.5 LUFS' or None if measurement fails.
+    """
+    if not ffmpeg_path:
+        return None
+    try:
+        result = subprocess.run(
+            [
+                ffmpeg_path,
+                "-i", filepath,
+                "-af", "ebur128=peak=true",
+                "-f", "null", "-",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        # ebur128 summary is written to stderr
+        for line in reversed(result.stderr.splitlines()):
+            line = line.strip()
+            if line.startswith("I:"):
+                value = line.split("I:")[1].strip().split()[0]
+                return f"{value} LUFS"
+        return None
+    except subprocess.TimeoutExpired:
+        logger.error(f"ffmpeg loudness measurement timed out for: {filepath}")
+        return None
+    except Exception as e:
+        logger.error(f"Loudness measurement failed for {filepath}: {e}")
+        return None

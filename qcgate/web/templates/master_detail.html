@@ -154,12 +154,12 @@
             <span class="detail-value">{{ latest_iteration.audio_channels or '—' }}</span>
         </div>
         <div class="detail-row">
-            <span class="detail-label">Scan type</span>
-            <span class="detail-value">{{ latest_iteration.scan_type or '—' }}</span>
+            <span class="detail-label">Loudness</span>
+            <span class="detail-value">{{ latest_iteration.loudness or '—' }}</span>
         </div>
         <div class="detail-row">
-            <span class="detail-label">Exported</span>
-            <span class="detail-value">{{ latest_iteration.exported_at }}</span>
+            <span class="detail-label">Scan type</span>
+            <span class="detail-value">{{ latest_iteration.scan_type or '—' }}</span>
         </div>
         {% else %}
         <p style="color:var(--amber);font-size:13px;margin-bottom:12px;">

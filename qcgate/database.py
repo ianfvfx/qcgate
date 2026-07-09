@@ -94,6 +94,7 @@ def initialise_database() -> None:
             duration         TEXT,
             audio_channels   TEXT,
             scan_type        TEXT,
+            loudness         TEXT,
             UNIQUE(master_id, iteration_number)
         )
     """)

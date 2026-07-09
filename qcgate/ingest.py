@@ -18,7 +18,7 @@ from typing import Optional, Tuple
 
 from qcgate.database import get_connection
 from qcgate import config
-from qcgate.ffprobe import extract_metadata
+from qcgate.ffprobe import extract_metadata, measure_loudness
 from qcgate.slate import extract_slate_metadata
 
 logger = logging.getLogger(__name__)
@@ -269,8 +269,8 @@ def create_new_iteration(
     conn.execute("""
         INSERT INTO iterations
             (master_id, iteration_number, status, exported_at, file_path,
-             codec, resolution, framerate, duration, audio_channels, scan_type)
-        VALUES (?, ?, 'Awaiting QC', datetime('now'), ?, ?, ?, ?, ?, ?, ?)
+             codec, resolution, framerate, duration, audio_channels, scan_type, loudness)
+        VALUES (?, ?, 'Awaiting QC', datetime('now'), ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         master_id,
         new_iteration,
@@ -281,6 +281,7 @@ def create_new_iteration(
         metadata.get("duration"),
         metadata.get("audio_channels"),
         metadata.get("scan_type"),
+        metadata.get("loudness"),
     ))
 
     conn.commit()
@@ -327,8 +328,9 @@ def ingest_file(filepath: str) -> None:
 
     job_id = get_or_create_job(job_name, job_root)
 
-    # Extract technical metadata and slate OCR metadata
+    # Extract technical metadata, loudness, and slate OCR metadata
     metadata = extract_metadata(filepath, ffprobe_path)
+    loudness = measure_loudness(filepath, ffmpeg_path)
     slate = extract_slate_metadata(
         filepath,
         ffmpeg_path,
@@ -344,6 +346,12 @@ def ingest_file(filepath: str) -> None:
         slate["duration"] = _format_duration(metadata["duration"])
     # aspect fallback is already handled inside extract_slate_metadata
 
+    # Auto-fail h264 — wrong codec for a master deliverable
+    codec = metadata.get("codec") or ""
+    auto_fail = codec.lower() == "h264"
+    auto_fail_reason = "Incorrect Codec" if auto_fail else None
+    initial_status = "Failed" if auto_fail else "Awaiting QC"
+
     # Check for filename conflict
     master_id, current_status = check_conflict(job_id, filename)
 
@@ -352,17 +360,19 @@ def ingest_file(filepath: str) -> None:
         conn = get_connection()
         cursor = conn.execute("""
             INSERT INTO masters (job_id, filename, current_iteration, status)
-            VALUES (?, ?, 1, 'Awaiting QC')
-        """, (job_id, filename))
+            VALUES (?, ?, 1, ?)
+        """, (job_id, filename, initial_status))
         master_id = cursor.lastrowid
 
         conn.execute("""
             INSERT INTO iterations
-                (master_id, iteration_number, status, exported_at, file_path,
-                 codec, resolution, framerate, duration, audio_channels, scan_type)
-            VALUES (?, 1, 'Awaiting QC', datetime('now'), ?, ?, ?, ?, ?, ?, ?)
+                (master_id, iteration_number, status, failure_reason, exported_at, file_path,
+                 codec, resolution, framerate, duration, audio_channels, scan_type, loudness)
+            VALUES (?, 1, ?, ?, datetime('now'), ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             master_id,
+            initial_status,
+            auto_fail_reason,
             filepath,
             metadata.get("codec"),
             metadata.get("resolution"),
@@ -370,6 +380,7 @@ def ingest_file(filepath: str) -> None:
             metadata.get("duration"),
             metadata.get("audio_channels"),
             metadata.get("scan_type"),
+            loudness,
         ))
 
         conn.execute("""
@@ -387,7 +398,10 @@ def ingest_file(filepath: str) -> None:
 
         conn.commit()
         conn.close()
-        logger.info(f"New master created: {filename} (job={job_name}, master_id={master_id})")
+        if auto_fail:
+            logger.warning(f"Auto-failed (h264): {filename} (job={job_name}, master_id={master_id})")
+        else:
+            logger.info(f"New master created: {filename} (job={job_name}, master_id={master_id})")
 
     elif current_status == "Failed":
         # Normal resubmission after failure — automatically treat as new iteration
