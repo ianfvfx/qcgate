@@ -102,7 +102,11 @@ async def resolve_as_new_iteration(
     conn.execute("""
         UPDATE masters
         SET current_iteration = ?, status = 'Awaiting QC',
-            qc_operator = NULL, updated_at = datetime('now')
+            qc_operator = NULL,
+            published_path = NULL,
+            vault_path = NULL,
+            vault_proxy_path = NULL,
+            updated_at = datetime('now')
         WHERE id = ?
     """, (new_iteration, master_id))
 

@@ -242,12 +242,16 @@ def create_new_iteration(
 
     new_iteration = row["current_iteration"] + 1
 
-    # Update master record and overwrite slate fields wholesale
+    # Update master record and overwrite slate fields wholesale.
+    # Clear published_path and vault_path — those belong to the previous iteration.
     conn.execute("""
         UPDATE masters
         SET current_iteration = ?,
             status = 'Awaiting QC',
             qc_operator = NULL,
+            published_path = NULL,
+            vault_path = NULL,
+            vault_proxy_path = NULL,
             slate_title = ?,
             slate_version = ?,
             slate_clock = ?,

@@ -112,8 +112,9 @@ def vault_job(
             # Ensure vault directories exist
             os.makedirs(vault_masters_dir, exist_ok=True)
 
-            # Copy master file
-            vault_master_path = os.path.join(vault_masters_dir, filename)
+            # Copy master file — preserve the full timestamped filename from published_path
+            source_filename = os.path.basename(published_path)
+            vault_master_path = os.path.join(vault_masters_dir, source_filename)
             logger.info(f"Copying master to vault: {published_path} -> {vault_master_path}")
             shutil.copy2(published_path, vault_master_path)
 
