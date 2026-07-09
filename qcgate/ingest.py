@@ -164,25 +164,24 @@ def derive_job_name(filepath: str, watch_path: str) -> Optional[str]:
 def get_or_create_job(job_name: str, job_root_path: str) -> int:
     """
     Return the job ID for the given job name, creating a record if needed.
+    Uses INSERT OR IGNORE to handle concurrent ingest threads racing to create
+    the same job simultaneously.
     """
     conn = get_connection()
+
+    conn.execute(
+        "INSERT OR IGNORE INTO jobs (name, path) VALUES (?, ?)",
+        (job_name, job_root_path)
+    )
+    conn.commit()
 
     row = conn.execute(
         "SELECT id FROM jobs WHERE name = ?", (job_name,)
     ).fetchone()
 
-    if row:
-        conn.close()
-        return row["id"]
-
-    cursor = conn.execute(
-        "INSERT INTO jobs (name, path) VALUES (?, ?)",
-        (job_name, job_root_path)
-    )
-    conn.commit()
-    job_id = cursor.lastrowid
+    job_id = row["id"]
     conn.close()
-    logger.info(f"New job registered: {job_name} (id={job_id})")
+    logger.info(f"Job registered: {job_name} (id={job_id})")
     return job_id
 
 
