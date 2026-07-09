@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}QCGate — Status{% endblock %}
+
+{% block nav %}
+<div class="stakeholder-banner">
+    QCGate — View Only. This page refreshes automatically every 60 seconds.
+</div>
+<nav>
+    <a class="nav-brand" href="/status">QC<span>Gate</span></a>
+    <div class="nav-links">
+        <span class="nav-user" style="color:var(--text-muted);font-size:12px;">View Only</span>
+    </div>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-title">Mastering Status</div>
+</div>
+
+<div class="search-bar">
+    <input
+        type="text"
+        id="search"
+        placeholder="Search by filename or project…"
+        oninput="filterTable(this.value)"
+    >
+</div>
+
+<div class="table-wrap">
+    {% if masters %}
+    <table id="masters-table">
+        <thead>
+            <tr>
+                <th>Filename</th>
+                <th>Project</th>
+                <th>Iteration</th>
+                <th>Exported</th>
+                <th>Status</th>
+                <th>QC Operator</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for m in masters %}
+        <tr data-filename="{{ m.filename|lower }}" data-job="{{ m.job_name|lower }}">
+            <td class="mono"><a href="/status/masters/{{ m.id }}">{{ m.filename }}</a></td>
+            <td><a href="/status/jobs/{{ m.job_id }}">{{ m.job_name }}</a></td>
+            <td>{{ m.current_iteration }}</td>
+            <td class="mono">{{ m.exported_at }}</td>
+            <td>
+                {% if m.status == 'Awaiting QC' %}
+                    <span class="badge badge-awaiting">Awaiting QC</span>
+                {% elif m.status == 'QC In Progress' %}
+                    <span class="badge badge-progress">QC</span>
+                {% elif m.status == 'Passed' %}
+                    <span class="badge badge-passed">Passed</span>
+                {% elif m.status == 'Failed' %}
+                    <span class="badge badge-failed">Failed</span>
+                {% endif %}
+            </td>
+            <td class="mono">{{ m.qc_operator or '—' }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+        <strong>No masters yet</strong>
+        <p>Nothing has been submitted for QC yet.</p>
+    </div>
+    {% endif %}
+</div>
+
+{% if total_pages > 1 %}
+<div style="display:flex;align-items:center;justify-content:space-between;margin-top:16px;font-size:13px;color:var(--text-muted);">
+    <span>{{ total }} masters &mdash; page {{ page }} of {{ total_pages }}</span>
+    <div style="display:flex;gap:6px;">
+        {% if page > 1 %}
+        <a href="/status?page={{ page - 1 }}" class="btn btn-neutral btn-sm">← Prev</a>
+        {% else %}
+        <button class="btn btn-neutral btn-sm" disabled>← Prev</button>
+        {% endif %}
+        {% if page < total_pages %}
+        <a href="/status?page={{ page + 1 }}" class="btn btn-neutral btn-sm">Next →</a>
+        {% else %}
+        <button class="btn btn-neutral btn-sm" disabled>Next →</button>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+function filterTable(query) {
+    const q = query.toLowerCase();
+    document.querySelectorAll('#masters-table tbody tr').forEach(row => {
+        const filename = row.dataset.filename || '';
+        const job = row.dataset.job || '';
+        row.style.display = (filename.includes(q) || job.includes(q)) ? '' : 'none';
+    });
+}
+// Auto-refresh every 60 seconds
+setTimeout(() => location.reload(), 60000);
+</script>
+{% endblock %}

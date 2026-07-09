@@ -1,0 +1,224 @@
+{% extends "base.html" %}
+{% block title %}QCGate — Admin{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-title">Admin</div>
+</div>
+
+{% if message %}
+<div class="alert alert-success">{{ message }}</div>
+{% endif %}
+{% if error %}
+<div class="alert alert-error">{{ error }}</div>
+{% endif %}
+
+<!-- ------------------------------------------------------------------ -->
+<!-- USERS                                                               -->
+<!-- ------------------------------------------------------------------ -->
+<div class="detail-card" style="margin-bottom:24px;">
+    <h4>Users
+        <button class="btn btn-primary btn-sm" style="float:right;"
+            onclick="document.getElementById('create-user-modal').classList.add('open')">
+            + New User
+        </button>
+    </h4>
+
+    <table style="margin-top:12px;">
+        <thead>
+            <tr>
+                <th>Username</th>
+                <th>Role</th>
+                <th>Created</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for u in users %}
+        <tr>
+            <td class="mono">{{ u.username }}</td>
+            <td>
+                {% if u.role == 'admin' %}
+                    <span class="badge badge-progress">admin</span>
+                {% else %}
+                    <span class="badge badge-awaiting">techop</span>
+                {% endif %}
+            </td>
+            <td class="mono">{{ u.created_at }}</td>
+            <td>
+                <div class="actions">
+                    <button class="btn btn-neutral btn-sm"
+                        onclick="openSetPasswordModal({{ u.id }}, '{{ u.username }}')">
+                        Set Password
+                    </button>
+                    {% if u.id != current_user.id %}
+                    <form method="post" action="/admin/users/{{ u.id }}/delete"
+                        onsubmit="return confirm('Delete user {{ u.username }}? This cannot be undone.')">
+                        <button class="btn btn-danger btn-sm" type="submit">Delete</button>
+                    </form>
+                    {% endif %}
+                </div>
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- ------------------------------------------------------------------ -->
+<!-- PATH CONFIGURATION                                                  -->
+<!-- ------------------------------------------------------------------ -->
+<div class="detail-card" style="margin-bottom:24px;">
+    <h4>Path Configuration</h4>
+    <p style="color:var(--text-muted);font-size:12px;margin-bottom:16px;margin-top:4px;">
+        Changes take effect when the watcher is restarted. Restart it after saving.
+    </p>
+    <form method="post" action="/admin/config">
+        {% for key, data in config.items() %}
+        <div class="form-group">
+            <label for="cfg_{{ key }}">
+                {{ key }}
+                <span style="color:var(--text-muted);font-weight:400;margin-left:8px;">
+                    — {{ data.description }}
+                </span>
+            </label>
+            <input type="text" id="cfg_{{ key }}" name="{{ key }}" value="{{ data.value }}">
+        </div>
+        {% endfor %}
+        <button type="submit" class="btn btn-primary">Save Configuration</button>
+    </form>
+</div>
+
+<!-- ------------------------------------------------------------------ -->
+<!-- TRANSCODE PRESETS                                                   -->
+<!-- ------------------------------------------------------------------ -->
+<div class="detail-card" style="margin-bottom:24px;">
+    <h4>Transcode Presets
+        <button class="btn btn-primary btn-sm" style="float:right;"
+            onclick="document.getElementById('create-preset-modal').classList.add('open')">
+            + New Preset
+        </button>
+    </h4>
+    <p style="color:var(--text-muted);font-size:12px;margin-bottom:16px;margin-top:4px;">
+        Each preset defines an encoding watch folder. When a TechOp dispatches a master to a preset,
+        QCGate copies the file into that folder for the external encoding tool to process.
+    </p>
+    {% if presets %}
+    <table style="margin-top:8px;">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Watch Folder Path</th>
+                <th>Created</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for p in presets %}
+        <tr>
+            <td style="font-weight:600;">{{ p.name }}</td>
+            <td class="mono" style="font-size:12px;">{{ p.path }}</td>
+            <td class="mono">{{ p.created_at }}</td>
+            <td>
+                <form method="post" action="/admin/presets/{{ p.id }}/delete"
+                    onsubmit="return confirm('Delete preset {{ p.name }}?')">
+                    <button class="btn btn-danger btn-sm" type="submit">Delete</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color:var(--text-muted);font-size:13px;margin-top:8px;">No presets defined yet.</p>
+    {% endif %}
+</div>
+
+<!-- Create preset modal -->
+<div class="modal-backdrop" id="create-preset-modal">
+    <div class="modal">
+        <h3>New Transcode Preset</h3>
+        <form method="post" action="/admin/presets/create">
+            <div class="form-group">
+                <label for="preset_name">Preset name</label>
+                <input type="text" id="preset_name" name="name" placeholder="e.g. Clearcast H264">
+            </div>
+            <div class="form-group">
+                <label for="preset_path">Watch folder path</label>
+                <input type="text" id="preset_path" name="path" placeholder="e.g. /Volumes/encodes/clearcast">
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-neutral"
+                    onclick="document.getElementById('create-preset-modal').classList.remove('open')">
+                    Cancel
+                </button>
+                <button type="submit" class="btn btn-primary">Create Preset</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Create user modal -->
+<div class="modal-backdrop" id="create-user-modal">
+    <div class="modal">
+        <h3>Create New User</h3>
+        <form method="post" action="/admin/users/create">
+            <div class="form-group">
+                <label for="new_username">Username</label>
+                <input type="text" id="new_username" name="username" autocomplete="off">
+            </div>
+            <div class="form-group">
+                <label for="new_password">Password</label>
+                <input type="password" id="new_password" name="password">
+            </div>
+            <div class="form-group">
+                <label for="new_role">Role</label>
+                <select id="new_role" name="role">
+                    <option value="techop">TechOp</option>
+                    <option value="admin">Admin</option>
+                </select>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-neutral"
+                    onclick="document.getElementById('create-user-modal').classList.remove('open')">
+                    Cancel
+                </button>
+                <button type="submit" class="btn btn-primary">Create User</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Set password modal -->
+<div class="modal-backdrop" id="set-password-modal">
+    <div class="modal">
+        <h3>Set Password for <span id="set-password-username"></span></h3>
+        <form method="post" id="set-password-form" action="">
+            <div class="form-group">
+                <label for="new_pw">New Password</label>
+                <input type="password" id="new_pw" name="password">
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-neutral"
+                    onclick="document.getElementById('set-password-modal').classList.remove('open')">
+                    Cancel
+                </button>
+                <button type="submit" class="btn btn-primary">Set Password</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function openSetPasswordModal(userId, username) {
+    document.getElementById('set-password-username').textContent = username;
+    document.getElementById('set-password-form').action = '/admin/users/' + userId + '/set-password';
+    document.getElementById('set-password-modal').classList.add('open');
+}
+document.querySelectorAll('.modal-backdrop').forEach(b => {
+    b.addEventListener('click', e => { if (e.target === b) b.classList.remove('open'); });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,346 @@
+{% extends "base.html" %}
+{% block title %}QCGate — {{ master.filename }}{% endblock %}
+
+{% block content %}
+<div class="breadcrumb">
+    <a href="/">Dashboard</a> / <a href="/jobs/{{ master.job_id }}">{{ master.job_name }}</a> / {{ master.filename.rsplit('.', 1)[0] }}
+</div>
+
+<div class="page-header">
+    <div class="page-title mono">{{ master.filename.rsplit('.', 1)[0] }}</div>
+    <div class="actions" style="display:flex;flex-wrap:nowrap;gap:6px;align-items:center;">
+        {% if master.status == 'Awaiting QC' %}
+            <form method="post" action="/masters/{{ master.id }}/start-qc">
+                <button class="btn btn-primary" type="submit">Start QC</button>
+            </form>
+        {% elif master.status == 'QC In Progress' %}
+            <form method="post" action="/masters/{{ master.id }}/start-qc">
+                <button class="btn btn-neutral" type="submit"
+                    onclick="return confirm('Reassign QC from {{ master.qc_operator }} to yourself?')">
+                    Reassign
+                </button>
+            </form>
+            <button class="btn btn-success" onclick="openPassModal()">Pass</button>
+            <button class="btn btn-danger" onclick="openFailModal()">Fail</button>
+        {% endif %}
+        <button class="btn btn-neutral" onclick="openRenameModal()">Rename</button>
+    </div>
+</div>
+
+<div class="detail-grid" style="grid-template-columns:1fr 1fr 1fr;">
+    <!-- Status & QC info -->
+    <div class="detail-card">
+        <h4>QC Status</h4>
+        <div class="detail-row">
+            <span class="detail-label">Status</span>
+            <span>
+                {% if master.status == 'Awaiting QC' %}
+                    <span class="badge badge-awaiting">Awaiting QC</span>
+                {% elif master.status == 'QC In Progress' %}
+                    <span class="badge badge-progress">QC</span>
+                {% elif master.status == 'Passed' %}
+                    <span class="badge badge-passed">Passed</span>
+                {% elif master.status == 'Failed' %}
+                    <span class="badge badge-failed">Failed</span>
+                {% endif %}
+            </span>
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">Project</span>
+            <span><a href="/jobs/{{ master.job_id }}">{{ master.job_name }}</a></span>
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">Iteration</span>
+            <span class="detail-value">{{ master.current_iteration }}</span>
+        </div>
+        {% if latest_iteration and latest_iteration.file_path %}
+        <div class="detail-row">
+            <span class="detail-label">Filename</span>
+            <span class="detail-value mono" style="font-size:11px;word-break:break-all;">{{ latest_iteration.file_path.split('/')[-1] }}</span>
+        </div>
+        {% endif %}
+        {% if master.qc_operator %}
+        <div class="detail-row">
+            <span class="detail-label">QC Operator</span>
+            <span class="detail-value">{{ master.qc_operator }}</span>
+        </div>
+        {% endif %}
+        {% if master.published_path %}
+        <div class="detail-row">
+            <span class="detail-label">Published to</span>
+            <span class="detail-value" style="word-break:break-all;font-size:11px;">{{ master.published_path }}</span>
+        </div>
+        {% endif %}
+        {% if master.vault_path %}
+        <div class="detail-row">
+            <span class="detail-label">Vaulted to</span>
+            <span class="detail-value" style="word-break:break-all;font-size:11px;color:var(--green);">{{ master.vault_path }}</span>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Slate metadata from OCR -->
+    <div class="detail-card">
+        <h4>Version Metadata
+            {% if not master.vault_path %}
+            <form method="post" action="/masters/{{ master.id }}/refresh-slate" style="display:inline;float:right;">
+                <button class="btn btn-neutral btn-sm" type="submit">↻ Reload</button>
+            </form>
+            {% endif %}
+        </h4>
+        <form method="post" action="/masters/{{ master.id }}/update-slate">
+        {% set locked = master.vault_path %}
+        <div class="detail-row">
+            <span class="detail-label">Title</span>
+            {% if locked %}<span class="detail-value">{{ master.slate_title or '—' }}</span>
+            {% else %}<input class="detail-value" name="slate_title" value="{{ master.slate_title or '' }}" style="background:transparent;border:none;border-bottom:1px solid var(--border);color:var(--text);width:100%;padding:1px 0;">{% endif %}
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">Version</span>
+            {% if locked %}<span class="detail-value">{{ master.slate_version or '—' }}</span>
+            {% else %}<input class="detail-value" name="slate_version" value="{{ master.slate_version or '' }}" style="background:transparent;border:none;border-bottom:1px solid var(--border);color:var(--text);width:100%;padding:1px 0;">{% endif %}
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">Clock</span>
+            {% if locked %}<span class="detail-value">{{ master.slate_clock or '—' }}</span>
+            {% else %}<input class="detail-value" name="slate_clock" value="{{ master.slate_clock or '' }}" style="background:transparent;border:none;border-bottom:1px solid var(--border);color:var(--text);width:100%;padding:1px 0;">{% endif %}
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">Aspect</span>
+            {% if locked %}<span class="detail-value">{{ master.slate_aspect or '—' }}</span>
+            {% else %}<input class="detail-value" name="slate_aspect" value="{{ master.slate_aspect or '' }}" style="background:transparent;border:none;border-bottom:1px solid var(--border);color:var(--text);width:100%;padding:1px 0;">{% endif %}
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">Duration</span>
+            {% if locked %}<span class="detail-value">{{ master.slate_duration or '—' }}</span>
+            {% else %}<input class="detail-value" name="slate_duration" value="{{ master.slate_duration or '' }}" style="background:transparent;border:none;border-bottom:1px solid var(--border);color:var(--text);width:100%;padding:1px 0;">{% endif %}
+        </div>
+        {% if not locked %}
+        <div style="margin-top:10px;text-align:right;">
+            <button class="btn btn-primary btn-sm" type="submit">Save</button>
+        </div>
+        {% endif %}
+        </form>
+    </div>
+
+    <!-- Technical metadata from ffprobe -->
+    <div class="detail-card">
+        <h4>Technical Metadata
+            {% if not master.vault_path %}
+            <form method="post" action="/masters/{{ master.id }}/refresh-metadata" style="display:inline;float:right;">
+                <button class="btn btn-neutral btn-sm" type="submit">↻ Reload</button>
+            </form>
+            {% endif %}
+        </h4>
+        {% if latest_iteration and latest_iteration.codec %}
+        <div class="detail-row">
+            <span class="detail-label">Codec</span>
+            <span class="detail-value">{{ latest_iteration.codec }}</span>
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">Resolution</span>
+            <span class="detail-value">{{ latest_iteration.resolution or '—' }}</span>
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">Frame rate</span>
+            <span class="detail-value">{{ latest_iteration.framerate or '—' }}</span>
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">Duration</span>
+            <span class="detail-value">{{ latest_iteration.duration or '—' }}</span>
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">Audio channels</span>
+            <span class="detail-value">{{ latest_iteration.audio_channels or '—' }}</span>
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">Scan type</span>
+            <span class="detail-value">{{ latest_iteration.scan_type or '—' }}</span>
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">Exported</span>
+            <span class="detail-value">{{ latest_iteration.exported_at }}</span>
+        </div>
+        {% else %}
+        <p style="color:var(--amber);font-size:13px;margin-bottom:12px;">
+            ⚠ Metadata unavailable — file may still have been writing at ingest time.
+        </p>
+        {% if master.status in ('Awaiting QC', 'QC In Progress') %}
+        <form method="post" action="/masters/{{ master.id }}/refresh-metadata">
+            <button class="btn btn-primary btn-sm" type="submit">↻ Run ffprobe now</button>
+        </form>
+        {% endif %}
+        {% endif %}
+    </div>
+</div>
+
+{% if transcoded %}
+<div class="alert alert-success">✓ Copied to <strong>{{ transcoded }}</strong> watch folder.</div>
+{% endif %}
+
+{% if master.proxy_status == 'ready' or (presets and master.status == 'Passed') %}
+<div style="display:flex;gap:16px;margin-bottom:24px;align-items:flex-start;">
+
+    {% if master.proxy_status == 'ready' %}
+    <div class="detail-card" style="flex:1;">
+        <h4>Preview</h4>
+        <video controls style="display:block;max-width:100%;margin-top:8px;border-radius:4px;background:#000;">
+            <source src="/masters/{{ master.id }}/proxy" type="video/mp4">
+            Your browser does not support video playback.
+        </video>
+    </div>
+    {% elif master.proxy_status == 'generating' %}
+    <div class="detail-card" style="flex:1;">
+        <h4>Preview</h4>
+        <p style="color:var(--amber);font-size:13px;margin-top:8px;">
+            ⏳ Proxy is being generated — check back in a moment.
+        </p>
+    </div>
+    {% elif master.proxy_status == 'failed' %}
+    <div class="detail-card" style="flex:1;">
+        <h4>Preview</h4>
+        <p style="color:var(--red);font-size:13px;margin-top:8px;">
+            ✕ Proxy generation failed. Check server logs for details.
+        </p>
+    </div>
+    {% endif %}
+
+    {% if presets and master.status == 'Passed' %}
+    <div class="detail-card" style="width:220px;flex-shrink:0;">
+        <h4>Transcode</h4>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:12px;">
+            {% for preset in presets %}
+            <form method="post" action="/masters/{{ master.id }}/transcode/{{ preset.id }}"
+                onsubmit="return confirm('Copy {{ master.filename }} to the {{ preset.name }} watch folder?')">
+                <button class="btn btn-neutral" type="submit"
+                    style="width:100%;text-align:left;">
+                    {{ preset.name }}
+                </button>
+            </form>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+</div>
+{% elif master.proxy_status == 'generating' %}
+<div class="detail-card" style="margin-bottom:24px;">
+    <h4>Preview</h4>
+    <p style="color:var(--amber);font-size:13px;margin-top:8px;">
+        ⏳ Proxy is being generated — check back in a moment.
+    </p>
+</div>
+{% elif master.proxy_status == 'failed' %}
+<div class="detail-card" style="margin-bottom:24px;">
+    <h4>Preview</h4>
+    <p style="color:var(--red);font-size:13px;margin-top:8px;">
+        ✕ Proxy generation failed. Check server logs for details.
+    </p>
+</div>
+{% endif %}
+
+<!-- Iteration history -->
+<div class="detail-card" style="margin-bottom:24px;">
+    <h4>Version History</h4>
+    <table style="margin-top:8px;">
+        <thead>
+            <tr>
+                <th>Iteration</th>
+                <th>Exported</th>
+                <th>Status</th>
+                <th>Codec</th>
+                <th>Resolution</th>
+                <th>Frame Rate</th>
+                <th>Duration</th>
+                <th>Failure Reason</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for it in iterations %}
+        <tr>
+            <td class="detail-value">v{{ it.iteration_number }}</td>
+            <td class="mono">{{ it.exported_at }}</td>
+            <td>
+                {% if it.status == 'Awaiting QC' %}
+                    <span class="badge badge-awaiting">Awaiting QC</span>
+                {% elif it.status == 'QC In Progress' %}
+                    <span class="badge badge-progress">QC</span>
+                {% elif it.status == 'Passed' %}
+                    <span class="badge badge-passed">Passed</span>
+                {% elif it.status == 'Failed' %}
+                    <span class="badge badge-failed">Failed</span>
+                {% endif %}
+            </td>
+            <td class="detail-value">{{ it.codec or '—' }}</td>
+            <td class="detail-value">{{ it.resolution or '—' }}</td>
+            <td class="detail-value">{{ it.framerate or '—' }}</td>
+            <td class="detail-value">{{ it.duration or '—' }}</td>
+            <td style="color:var(--red);font-size:12px;">{{ it.failure_reason or '' }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Pass modal -->
+<div class="modal-backdrop" id="pass-modal">
+    <div class="modal">
+        <h3>Pass Master</h3>
+        <p style="color:var(--text-muted);font-size:13px;margin-bottom:16px;">
+            This will copy the file to the published folder and mark it as Passed.
+        </p>
+        <form method="post" action="/masters/{{ master.id }}/pass">
+            <div class="modal-actions">
+                <button type="button" class="btn btn-neutral" onclick="closeModal('pass-modal')">Cancel</button>
+                <button type="submit" class="btn btn-success">Confirm Pass</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Fail modal -->
+<div class="modal-backdrop" id="fail-modal">
+    <div class="modal">
+        <h3>Fail Master</h3>
+        <form method="post" action="/masters/{{ master.id }}/fail">
+            <div class="form-group">
+                <label for="failure_reason">Reason for failure</label>
+                <textarea name="failure_reason" id="failure_reason" placeholder="Describe the issue…"></textarea>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-neutral" onclick="closeModal('fail-modal')">Cancel</button>
+                <button type="submit" class="btn btn-danger">Confirm Fail</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Rename modal -->
+<div class="modal-backdrop" id="rename-modal">
+    <div class="modal">
+        <h3>Rename Master</h3>
+        <form method="post" action="/masters/{{ master.id }}/rename">
+            <div class="form-group">
+                <label for="new_filename">New filename</label>
+                <input type="text" name="new_filename" id="new_filename" value="{{ master.filename }}">
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-neutral" onclick="closeModal('rename-modal')">Cancel</button>
+                <button type="submit" class="btn btn-primary">Rename</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function openPassModal() { document.getElementById('pass-modal').classList.add('open'); }
+function openFailModal() { document.getElementById('fail-modal').classList.add('open'); }
+function openRenameModal() { document.getElementById('rename-modal').classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+document.querySelectorAll('.modal-backdrop').forEach(b => {
+    b.addEventListener('click', e => { if (e.target === b) b.classList.remove('open'); });
+});
+</script>
+{% endblock %}

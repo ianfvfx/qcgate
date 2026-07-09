@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}QCGate — Conflicts{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-title">Filename Conflicts</div>
+</div>
+
+<p style="color:var(--text-muted);font-size:13px;margin-bottom:20px;">
+    These files arrived in a watch folder with a filename that already exists in the system
+    and could not be automatically processed. Choose an action for each.
+</p>
+
+{% if conflicts %}
+<div class="table-wrap">
+    <table>
+        <thead>
+            <tr>
+                <th>Filename</th>
+                <th>Project</th>
+                <th>Current Status</th>
+                <th>Current Iteration</th>
+                <th>File Path</th>
+                <th>Detected</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for c in conflicts %}
+        <tr>
+            <td class="mono"><a href="/masters/{{ c.master_id }}">{{ c.filename }}</a></td>
+            <td>{{ c.job_name }}</td>
+            <td>
+                {% if c.master_status == 'Awaiting QC' %}
+                    <span class="badge badge-awaiting">Awaiting QC</span>
+                {% elif c.master_status == 'QC In Progress' %}
+                    <span class="badge badge-progress">QC</span>
+                {% elif c.master_status == 'Passed' %}
+                    <span class="badge badge-passed">Passed</span>
+                {% elif c.master_status == 'Failed' %}
+                    <span class="badge badge-failed">Failed</span>
+                {% endif %}
+            </td>
+            <td>v{{ c.current_iteration }}</td>
+            <td class="mono" style="font-size:11px;word-break:break-all;">{{ c.filepath }}</td>
+            <td class="mono">{{ c.detected_at }}</td>
+            <td>
+                <div class="actions">
+                    <form method="post" action="/conflicts/{{ c.id }}/new-iteration"
+                        onsubmit="return confirm('Treat this as a new iteration of {{ c.filename }}?')">
+                        <button class="btn btn-primary btn-sm" type="submit">New Iteration</button>
+                    </form>
+                    <form method="post" action="/conflicts/{{ c.id }}/discard"
+                        onsubmit="return confirm('Discard this conflict? The existing master will be unchanged.')">
+                        <button class="btn btn-neutral btn-sm" type="submit">Discard</button>
+                    </form>
+                </div>
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="table-wrap">
+    <div class="empty-state">
+        <strong>No unresolved conflicts</strong>
+        <p>All filename conflicts have been resolved.</p>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

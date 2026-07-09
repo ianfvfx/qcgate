@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+{% block title %}QCGate — Dashboard{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-title">Masters</div>
+</div>
+
+{% if conflicts %}
+<div class="alert alert-warning">
+    ⚠ {{ conflicts|length }} unresolved filename conflict{% if conflicts|length != 1 %}s{% endif %} require attention.
+    <a href="/conflicts">Review conflicts →</a>
+</div>
+{% endif %}
+
+<div class="search-bar">
+    <input
+        type="text"
+        id="search"
+        placeholder="Search by filename or project…"
+        oninput="filterTable(this.value)"
+    >
+</div>
+
+<div class="table-wrap">
+    {% if masters %}
+    <table id="masters-table">
+        <thead>
+            <tr>
+                <th>Master Name</th>
+                <th>Project</th>
+                <th>Iteration</th>
+                <th>Exported</th>
+                <th>Status</th>
+                <th>QC Operator</th>
+                <th>Actions</th>
+                {% if user.role == 'admin' %}<th></th>{% endif %}
+            </tr>
+        </thead>
+        <tbody>
+        {% for m in masters %}
+        <tr data-filename="{{ m.filename|lower }}" data-job="{{ m.job_name|lower }}">
+            <td class="mono" style="word-break:break-word;min-width:0;"><a href="/masters/{{ m.id }}">{{ m.filename.rsplit('.', 1)[0] | replace('_', '_<wbr>') | safe }}</a></td>
+            <td><a href="/jobs/{{ m.job_id }}">{{ m.job_name }}</a></td>
+            <td>{{ m.current_iteration }}</td>
+            <td class="mono">{{ m.exported_at }}</td>
+            <td>
+                {% if m.status == 'Awaiting QC' %}
+                    <span class="badge badge-awaiting">Awaiting QC</span>
+                {% elif m.status == 'QC In Progress' %}
+                    <span class="badge badge-progress">QC</span>
+                {% elif m.status == 'Passed' %}
+                    <span class="badge badge-passed">Passed</span>
+                {% elif m.status == 'Failed' %}
+                    <span class="badge badge-failed">Failed</span>
+                {% else %}
+                    <span class="badge">{{ m.status }}</span>
+                {% endif %}
+            </td>
+            <td class="mono">{{ m.qc_operator or '—' }}</td>
+            <td>
+                <div class="actions" style="display:flex;flex-wrap:nowrap;gap:6px;align-items:center;">
+                {% if m.status == 'Awaiting QC' %}
+                    <form method="post" action="/masters/{{ m.id }}/start-qc">
+                        <button class="btn btn-primary btn-sm" type="submit">Start QC</button>
+                    </form>
+                {% elif m.status == 'QC In Progress' %}
+                    <form method="post" action="/masters/{{ m.id }}/start-qc">
+                        <button class="btn btn-neutral btn-sm" type="submit"
+                            onclick="return confirm('Reassign QC from {{ m.qc_operator }} to yourself?')">
+                            Reassign
+                        </button>
+                    </form>
+                    <button class="btn btn-success btn-sm" onclick="openPassModal({{ m.id }})">Pass</button>
+                    <button class="btn btn-danger btn-sm" onclick="openFailModal({{ m.id }})">Fail</button>
+                {% endif %}
+                </div>
+            </td>
+            {% if user.role == 'admin' %}
+            <td style="text-align:center;width:32px;">
+                <form method="post" action="/admin/masters/{{ m.id }}/delete"
+                    onsubmit="return confirm('Delete record for {{ m.filename }}? This cannot be undone.')">
+                    <input type="hidden" name="redirect" value="/?page={{ page }}">
+                    <button type="submit" title="Delete record"
+                        style="background:none;border:none;cursor:pointer;color:var(--red);font-size:16px;opacity:0.5;padding:0;"
+                        onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.5'">
+                        ✕
+                    </button>
+                </form>
+            </td>
+            {% endif %}
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+        <strong>No masters yet</strong>
+        <p>Files dropped into the watch folder will appear here automatically.</p>
+    </div>
+    {% endif %}
+</div>
+
+{% if total_pages > 1 %}
+<div style="display:flex;align-items:center;justify-content:space-between;margin-top:16px;font-size:13px;color:var(--text-muted);">
+    <span>{{ total }} masters &mdash; page {{ page }} of {{ total_pages }}</span>
+    <div style="display:flex;gap:6px;">
+        {% if page > 1 %}
+        <a href="/?page={{ page - 1 }}" class="btn btn-neutral btn-sm">← Prev</a>
+        {% else %}
+        <button class="btn btn-neutral btn-sm" disabled>← Prev</button>
+        {% endif %}
+        {% if page < total_pages %}
+        <a href="/?page={{ page + 1 }}" class="btn btn-neutral btn-sm">Next →</a>
+        {% else %}
+        <button class="btn btn-neutral btn-sm" disabled>Next →</button>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Pass modal -->
+<div class="modal-backdrop" id="pass-modal">
+    <div class="modal">
+        <h3>Pass Master</h3>
+        <p style="color:var(--text-muted);font-size:13px;margin-bottom:16px;">
+            This will copy the file to the published folder and mark it as Passed.
+        </p>
+        <form method="post" id="pass-form" action="">
+            <div class="modal-actions">
+                <button type="button" class="btn btn-neutral" onclick="closeModal('pass-modal')">Cancel</button>
+                <button type="submit" class="btn btn-success">Confirm Pass</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Fail modal -->
+<div class="modal-backdrop" id="fail-modal">
+    <div class="modal">
+        <h3>Fail Master</h3>
+        <form method="post" id="fail-form" action="">
+            <div class="form-group">
+                <label for="failure_reason">Reason for failure</label>
+                <textarea name="failure_reason" id="failure_reason" placeholder="Describe the issue…"></textarea>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-neutral" onclick="closeModal('fail-modal')">Cancel</button>
+                <button type="submit" class="btn btn-danger">Confirm Fail</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function filterTable(query) {
+    const q = query.toLowerCase();
+    document.querySelectorAll('#masters-table tbody tr').forEach(row => {
+        const filename = row.dataset.filename || '';
+        const job = row.dataset.job || '';
+        row.style.display = (filename.includes(q) || job.includes(q)) ? '' : 'none';
+    });
+}
+
+function openPassModal(masterId) {
+    document.getElementById('pass-form').action = '/masters/' + masterId + '/pass';
+    document.getElementById('pass-modal').classList.add('open');
+}
+
+function openFailModal(masterId) {
+    document.getElementById('fail-form').action = '/masters/' + masterId + '/fail';
+    document.getElementById('fail-modal').classList.add('open');
+}
+
+function closeModal(id) {
+    document.getElementById(id).classList.remove('open');
+}
+
+// Close modals on backdrop click
+document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
+    backdrop.addEventListener('click', function(e) {
+        if (e.target === this) this.classList.remove('open');
+    });
+});
+</script>
+{% endblock %}

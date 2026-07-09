@@ -1,0 +1,29 @@
+# Python
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# App data — never commit the live database or generated files
+data/qcgate.db
+data/proxies/
+data/frames/
+
+# Secrets / local config overrides
+.env
+*.env
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# JetBrains IDEs
+.idea/
+
+# Logs
+*.log
