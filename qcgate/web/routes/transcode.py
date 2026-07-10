@@ -62,7 +62,7 @@ async def dispatch_transcode(
         )
 
     dest_dir = preset["path"]
-    dest_path = os.path.join(dest_dir, master["filename"])
+    dest_path = os.path.join(dest_dir, os.path.basename(published_path))
 
     try:
         os.makedirs(dest_dir, exist_ok=True)
