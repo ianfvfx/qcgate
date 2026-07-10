@@ -14,7 +14,7 @@ router = APIRouter()
 templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
 
 
-PAGE_SIZE = 10
+PAGE_SIZE = 50
 
 
 @router.get("/", response_class=HTMLResponse)
