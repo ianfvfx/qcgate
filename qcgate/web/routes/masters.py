@@ -263,7 +263,7 @@ async def fail_master(
         )
 
     try:
-        move_to_failed(src_path, failed_template, job_name)
+        failed_dest = move_to_failed(src_path, failed_template, job_name)
     except Exception as e:
         logger.error(f"Failed to move master {master_id} to failed: {e}")
         raise HTTPException(status_code=500, detail=f"File move failed: {e}")
@@ -276,9 +276,9 @@ async def fail_master(
     """, (master_id,))
 
     conn.execute("""
-        UPDATE iterations SET status = 'Failed', failure_reason = ?
+        UPDATE iterations SET status = 'Failed', failure_reason = ?, file_path = ?
         WHERE master_id = ? AND iteration_number = ?
-    """, (failure_reason, master_id, master["current_iteration"]))
+    """, (failure_reason, failed_dest, master_id, master["current_iteration"]))
 
     conn.commit()
     conn.close()
