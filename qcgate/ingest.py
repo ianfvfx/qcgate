@@ -438,9 +438,40 @@ def ingest_file(filepath: str) -> None:
 
     else:
         # Conflict — status is Awaiting QC, QC In Progress, or Passed
-        # Flag it on the dashboard for a TechOp to resolve
-        logger.warning(
-            f"Conflict: {filename} already exists with status '{current_status}' "
-            f"in job {job_name}. Flagging for review."
-        )
-        record_conflict(master_id, filepath)
+        if auto_fail:
+            # h264 conflicts are auto-failed as a new iteration — no point queuing for review
+            logger.warning(
+                f"h264 conflict auto-failed: {filename} (job={job_name}, master_id={master_id})"
+            )
+            new_iter = create_new_iteration(master_id, filepath, metadata, slate)
+            conn = get_connection()
+            conn.execute("""
+                UPDATE masters SET status = 'Failed' WHERE id = ?
+            """, (master_id,))
+            conn.execute("""
+                UPDATE iterations SET status = 'Failed', failure_reason = 'Incorrect Codec'
+                WHERE master_id = ? AND iteration_number = ?
+            """, (master_id, new_iter))
+            conn.commit()
+            conn.close()
+            failed_template = config.get("failed_path")
+            if failed_template:
+                try:
+                    failed_dest = move_to_failed(filepath, failed_template, job_name)
+                    conn = get_connection()
+                    conn.execute(
+                        "UPDATE iterations SET file_path = ? WHERE master_id = ? AND iteration_number = ?",
+                        (failed_dest, master_id, new_iter),
+                    )
+                    conn.commit()
+                    conn.close()
+                    logger.info(f"Auto-fail: moved to {failed_dest}")
+                except Exception as e:
+                    logger.error(f"Auto-fail: could not move {filename} to failed folder: {e}")
+        else:
+            # Flag it on the dashboard for a TechOp to resolve
+            logger.warning(
+                f"Conflict: {filename} already exists with status '{current_status}' "
+                f"in job {job_name}. Flagging for review."
+            )
+            record_conflict(master_id, filepath)
