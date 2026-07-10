@@ -19,7 +19,7 @@ from typing import Optional, Tuple
 from qcgate.database import get_connection
 from qcgate import config
 from qcgate.ffprobe import extract_metadata, measure_loudness
-from qcgate.slate import extract_slate_metadata
+from qcgate.slate import extract_slate_metadata, extract_clock_from_filename
 
 logger = logging.getLogger(__name__)
 
@@ -346,6 +346,8 @@ def ingest_file(filepath: str) -> None:
     if not slate.get("title"):
         stem = os.path.splitext(filename)[0]
         slate["title"] = _derive_title(stem, job_name)
+    if not slate.get("clock"):
+        slate["clock"] = extract_clock_from_filename(filename)
     if not slate.get("duration") and metadata.get("duration"):
         slate["duration"] = _format_duration(metadata["duration"])
     # aspect fallback is already handled inside extract_slate_metadata

@@ -132,6 +132,37 @@ def extract_slate_metadata(
     return parsed
 
 
+_CLOCK_TYPE_SUFFIXES = {
+    "ONLINE", "DOOH", "OLV", "SOCIAL", "OOH", "CTV", "VOD",
+    "DISPLAY", "CINEMA", "AUDIO",
+}
+
+
+def extract_clock_from_filename(filename: str) -> Optional[str]:
+    """
+    Determine a clock number from filename structure alone, for masters that
+    carry a clock number but have no burned-in slate to OCR.
+
+    Looks for a structural triple PREFIX_NAME_030 — a 3-4 letter prefix, a
+    longer identifier segment, then either a 3-digit duration or a known
+    deliverable-type suffix (ONLINE, DOOH, SOCIAL, etc). Hyphens are
+    normalised to underscores first (MUM-KNCM965-010 -> MUM_KNCM965_010).
+    """
+    stem = os.path.splitext(filename)[0]
+    parts = stem.replace("-", "_").split("_")
+
+    for i in range(len(parts) - 2):
+        prefix, ident, tail = parts[i], parts[i + 1], parts[i + 2]
+        if not re.fullmatch(r"[A-Za-z]{3,4}", prefix):
+            continue
+        if len(ident) <= len(prefix):
+            continue
+        if re.fullmatch(r"\d{3}", tail) or tail.upper() in _CLOCK_TYPE_SUFFIXES:
+            return "_".join((prefix, ident, tail))
+
+    return None
+
+
 def _parse_slate_text(text: str) -> Dict[str, Optional[str]]:
     """
     Parse OCR text from a slate frame and extract known fields.
