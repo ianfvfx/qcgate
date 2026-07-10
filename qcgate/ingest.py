@@ -20,6 +20,7 @@ from qcgate.database import get_connection
 from qcgate import config
 from qcgate.ffprobe import extract_metadata, measure_loudness
 from qcgate.slate import extract_slate_metadata, extract_clock_from_filename
+from qcgate.filemover import move_to_failed
 
 logger = logging.getLogger(__name__)
 
@@ -351,6 +352,9 @@ def ingest_file(filepath: str) -> None:
         if clock_from_filename:
             slate["clock"] = clock_from_filename
             slate["title"] = clock_from_filename
+    # Last-resort title: use the stripped filename stem
+    if not slate.get("title"):
+        slate["title"] = os.path.splitext(filename)[0]
     if not slate.get("duration") and metadata.get("duration"):
         slate["duration"] = _format_duration(metadata["duration"])
     # aspect fallback is already handled inside extract_slate_metadata
@@ -407,8 +411,23 @@ def ingest_file(filepath: str) -> None:
 
         conn.commit()
         conn.close()
+
         if auto_fail:
             logger.warning(f"Auto-failed (h264): {filename} (job={job_name}, master_id={master_id})")
+            failed_template = config.get("failed_path")
+            if failed_template:
+                try:
+                    failed_dest = move_to_failed(filepath, failed_template, job_name)
+                    conn = get_connection()
+                    conn.execute(
+                        "UPDATE iterations SET file_path = ? WHERE master_id = ? AND iteration_number = 1",
+                        (failed_dest, master_id),
+                    )
+                    conn.commit()
+                    conn.close()
+                    logger.info(f"Auto-fail: moved to {failed_dest}")
+                except Exception as e:
+                    logger.error(f"Auto-fail: could not move {filename} to failed folder: {e}")
         else:
             logger.info(f"New master created: {filename} (job={job_name}, master_id={master_id})")
 
