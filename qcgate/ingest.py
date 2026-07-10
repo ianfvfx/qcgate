@@ -347,7 +347,10 @@ def ingest_file(filepath: str) -> None:
         stem = os.path.splitext(filename)[0]
         slate["title"] = _derive_title(stem, job_name)
     if not slate.get("clock"):
-        slate["clock"] = extract_clock_from_filename(filename)
+        clock_from_filename = extract_clock_from_filename(filename)
+        if clock_from_filename:
+            slate["clock"] = clock_from_filename
+            slate["title"] = clock_from_filename
     if not slate.get("duration") and metadata.get("duration"):
         slate["duration"] = _format_duration(metadata["duration"])
     # aspect fallback is already handled inside extract_slate_metadata
