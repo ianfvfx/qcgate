@@ -108,6 +108,9 @@ def generate_proxy(master_id: int, source_path: str) -> None:
             "-pix_fmt", "yuv420p",         # required for broad compatibility
             "-preset", "fast",
             "-b:v", PROXY_BITRATE,
+            "-minrate", PROXY_BITRATE,
+            "-maxrate", PROXY_BITRATE,
+            "-bufsize", PROXY_BITRATE,     # CBR: bufsize == bitrate enforces constant rate
             "-c:a", "aac",
             "-b:a", AUDIO_BITRATE,
             "-movflags", "+faststart",     # web-optimised MP4
