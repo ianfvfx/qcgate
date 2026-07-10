@@ -362,8 +362,32 @@ def ingest_file(filepath: str) -> None:
     # Auto-fail h264 — wrong codec for a master deliverable
     codec = metadata.get("codec") or ""
     auto_fail = codec.lower() == "h264"
-    auto_fail_reason = "Incorrect Codec" if auto_fail else None
     initial_status = "Failed" if auto_fail else "Awaiting QC"
+
+    def _apply_auto_fail(master_id, iteration_number, src_path):
+        """Mark iteration as Failed and move the file to the failed folder."""
+        conn = get_connection()
+        conn.execute("UPDATE masters SET status = 'Failed' WHERE id = ?", (master_id,))
+        conn.execute("""
+            UPDATE iterations SET status = 'Failed', failure_reason = 'Incorrect Codec'
+            WHERE master_id = ? AND iteration_number = ?
+        """, (master_id, iteration_number))
+        conn.commit()
+        conn.close()
+        failed_template = config.get("failed_path")
+        if failed_template:
+            try:
+                failed_dest = move_to_failed(src_path, failed_template, job_name)
+                conn = get_connection()
+                conn.execute(
+                    "UPDATE iterations SET file_path = ? WHERE master_id = ? AND iteration_number = ?",
+                    (failed_dest, master_id, iteration_number),
+                )
+                conn.commit()
+                conn.close()
+                logger.info(f"Auto-fail: moved to {failed_dest}")
+            except Exception as e:
+                logger.error(f"Auto-fail: could not move file to failed folder: {e}")
 
     # Check for filename conflict
     master_id, current_status = check_conflict(job_id, filename)
@@ -385,7 +409,7 @@ def ingest_file(filepath: str) -> None:
         """, (
             master_id,
             initial_status,
-            auto_fail_reason,
+            "Incorrect Codec" if auto_fail else None,
             filepath,
             metadata.get("codec"),
             metadata.get("resolution"),
@@ -414,60 +438,25 @@ def ingest_file(filepath: str) -> None:
 
         if auto_fail:
             logger.warning(f"Auto-failed (h264): {filename} (job={job_name}, master_id={master_id})")
-            failed_template = config.get("failed_path")
-            if failed_template:
-                try:
-                    failed_dest = move_to_failed(filepath, failed_template, job_name)
-                    conn = get_connection()
-                    conn.execute(
-                        "UPDATE iterations SET file_path = ? WHERE master_id = ? AND iteration_number = 1",
-                        (failed_dest, master_id),
-                    )
-                    conn.commit()
-                    conn.close()
-                    logger.info(f"Auto-fail: moved to {failed_dest}")
-                except Exception as e:
-                    logger.error(f"Auto-fail: could not move {filename} to failed folder: {e}")
+            _apply_auto_fail(master_id, 1, filepath)
         else:
             logger.info(f"New master created: {filename} (job={job_name}, master_id={master_id})")
 
     elif current_status == "Failed":
-        # Normal resubmission after failure — automatically treat as new iteration
+        # Resubmission after failure — automatically treat as new iteration
         logger.info(f"Resubmission of failed master: {filename} — creating new iteration")
-        create_new_iteration(master_id, filepath, metadata, slate)
+        new_iter = create_new_iteration(master_id, filepath, metadata, slate)
+        if auto_fail:
+            logger.warning(f"Resubmission is also h264 — auto-failing iteration {new_iter}")
+            _apply_auto_fail(master_id, new_iter, filepath)
 
     else:
         # Conflict — status is Awaiting QC, QC In Progress, or Passed
         if auto_fail:
             # h264 conflicts are auto-failed as a new iteration — no point queuing for review
-            logger.warning(
-                f"h264 conflict auto-failed: {filename} (job={job_name}, master_id={master_id})"
-            )
+            logger.warning(f"h264 conflict auto-failed: {filename} (job={job_name}, master_id={master_id})")
             new_iter = create_new_iteration(master_id, filepath, metadata, slate)
-            conn = get_connection()
-            conn.execute("""
-                UPDATE masters SET status = 'Failed' WHERE id = ?
-            """, (master_id,))
-            conn.execute("""
-                UPDATE iterations SET status = 'Failed', failure_reason = 'Incorrect Codec'
-                WHERE master_id = ? AND iteration_number = ?
-            """, (master_id, new_iter))
-            conn.commit()
-            conn.close()
-            failed_template = config.get("failed_path")
-            if failed_template:
-                try:
-                    failed_dest = move_to_failed(filepath, failed_template, job_name)
-                    conn = get_connection()
-                    conn.execute(
-                        "UPDATE iterations SET file_path = ? WHERE master_id = ? AND iteration_number = ?",
-                        (failed_dest, master_id, new_iter),
-                    )
-                    conn.commit()
-                    conn.close()
-                    logger.info(f"Auto-fail: moved to {failed_dest}")
-                except Exception as e:
-                    logger.error(f"Auto-fail: could not move {filename} to failed folder: {e}")
+            _apply_auto_fail(master_id, new_iter, filepath)
         else:
             # Flag it on the dashboard for a TechOp to resolve
             logger.warning(
