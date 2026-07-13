@@ -290,14 +290,25 @@
                             {% if dup_count > 0 %}
                                 <div style="color:#db50e8;font-weight:600;">Duplicate frames</div>
                                 {% for d in f.duplicate_frames %}
-                                    <div class="mono" style="color:var(--text-muted);">{{ d.timecode }}</div>
+                                    <div class="mono" style="color:var(--text-muted);">
+                                        {% if d.frame_filename and master.status != 'Passed' %}
+                                            <a href="/qc-frames/{{ d.frame_filename }}" target="_blank" style="color:var(--text-muted);">{{ d.timecode }}</a>
+                                        {% else %}
+                                            {{ d.timecode }}
+                                        {% endif %}
+                                    </div>
                                 {% endfor %}
                             {% endif %}
                             {% if has_blanking %}
                                 <div style="color:#db50e8;font-weight:600;{% if dup_count > 0 %}margin-top:6px;{% endif %}">Blanking</div>
                                 {% for seg in f.blanking.segments %}
                                     <div class="mono" style="color:var(--text-muted);">
-                                        {{ seg.start_tc }} – {{ seg.end_tc }}
+                                        {% if seg.frame_filename and master.status != 'Passed' %}
+                                            <a href="/qc-frames/{{ seg.frame_filename }}" target="_blank" style="color:var(--text-muted);">{{ seg.start_tc }}</a>
+                                        {% else %}
+                                            {{ seg.start_tc }}
+                                        {% endif %}
+                                        – {{ seg.end_tc }}
                                         {% set b = seg.blanking %}
                                         ({% if b.left %}L:{{ b.left }}px {% endif %}{% if b.right %}R:{{ b.right }}px {% endif %}{% if b.top %}T:{{ b.top }}px {% endif %}{% if b.bottom %}B:{{ b.bottom }}px{% endif %})
                                     </div>

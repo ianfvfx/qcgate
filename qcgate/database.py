@@ -194,6 +194,11 @@ def initialise_database() -> None:
             "/usr/bin/tesseract",
             "Full path to the Tesseract OCR binary on the host system."
         ),
+        (
+            "qc_frames_path",
+            "/opt/qcgate/qc_frames",
+            "Directory where QC flag frame images (JPEGs) are saved."
+        ),
     ]
 
     cursor.executemany("""

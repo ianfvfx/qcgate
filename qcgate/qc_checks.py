@@ -14,8 +14,10 @@ If clean, status stays 'Awaiting QC'.
 
 import json
 import logging
+import os
 import threading
-from typing import Optional
+from datetime import datetime
+from typing import Optional, List, Dict
 
 from qcgate.database import get_connection
 
@@ -60,11 +62,42 @@ def _run_qc_checks(master_id: int, iteration_number: int, filepath: str) -> None
     has_blanking = blanking_data.get("has_blanking", False)
     has_issues = has_duplicates or has_blanking
 
-    # Slim the segments down — strip confidence_details (verbose) and frame images
+    # Save frame images if a frames directory is configured
+    from qcgate import config as qcgate_config
+    frames_dir = qcgate_config.get("qc_frames_path") or ""
+    scan_stamp = datetime.now().strftime("%Y%m%d%H%M")
+
+    def _save_frame(frame_number, timecode):
+        # type: (int, str) -> Optional[str]
+        """Extract a single frame from the source file and save as JPEG. Returns filename or None."""
+        if not frames_dir:
+            return None
+        try:
+            import cv2
+            os.makedirs(frames_dir, exist_ok=True)
+            cap = cv2.VideoCapture(filepath)
+            cap.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
+            ok, frame = cap.read()
+            cap.release()
+            if not ok or frame is None:
+                return None
+            tc_safe = timecode.replace(":", "").replace(";", "")
+            filename = "%d_%s_%s.jpg" % (master_id, scan_stamp, tc_safe)
+            dest = os.path.join(frames_dir, filename)
+            cv2.imwrite(dest, frame, [cv2.IMWRITE_JPEG_QUALITY, 90])
+            return filename
+        except Exception as e:
+            logger.warning("QC checks: could not save frame image: %s", e)
+            return None
+
+    # Slim the segments — strip confidence_details, save one JPEG per segment
     slim_segments = []
     for seg in blanking_segments:
+        tc = seg.get("start_tc", "")
+        frame_num = seg.get("start_frame", 0)
+        frame_filename = _save_frame(frame_num, tc)
         slim_segments.append({
-            "start_tc": seg.get("start_tc"),
+            "start_tc": tc,
             "end_tc": seg.get("end_tc"),
             "duration_frames": seg.get("duration_frames"),
             "confidence": round(seg.get("confidence", 0), 1),
@@ -73,13 +106,22 @@ def _run_qc_checks(master_id: int, iteration_number: int, filepath: str) -> None
                 k: seg.get("blanking", {}).get(k, 0)
                 for k in ("left", "right", "top", "bottom")
             },
+            "frame_filename": frame_filename,
+        })
+
+    # Save one JPEG per duplicate frame
+    slim_duplicates = []
+    for d in duplicate_frames:
+        frame_filename = _save_frame(d["frame"], d["timecode"])
+        slim_duplicates.append({
+            "frame": d["frame"],
+            "timecode": d["timecode"],
+            "mse": round(d["mse"], 2),
+            "frame_filename": frame_filename,
         })
 
     qc_flags = {
-        "duplicate_frames": [
-            {"frame": d["frame"], "timecode": d["timecode"], "mse": round(d["mse"], 2)}
-            for d in duplicate_frames
-        ],
+        "duplicate_frames": slim_duplicates,
         "blanking": {
             "has_blanking": has_blanking,
             "segments": slim_segments,

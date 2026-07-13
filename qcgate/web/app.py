@@ -17,7 +17,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 from dotenv import load_dotenv
 
-from qcgate.web.routes import dashboard, masters, jobs, admin, auth, stakeholder, conflicts, transcode
+from qcgate.web.routes import dashboard, masters, jobs, admin, auth, stakeholder, conflicts, transcode, qc_frames
 
 load_dotenv()
 
@@ -60,3 +60,4 @@ app.include_router(admin.router)
 app.include_router(stakeholder.router)
 app.include_router(conflicts.router)
 app.include_router(transcode.router)
+app.include_router(qc_frames.router)
