@@ -225,6 +225,7 @@ def create_new_iteration(
     filepath: str,
     metadata: dict,
     slate: Optional[dict] = None,
+    loudness: Optional[str] = None,
 ) -> int:
     """
     Increment the master's iteration count and create a new iteration record.
@@ -287,7 +288,7 @@ def create_new_iteration(
         metadata.get("duration"),
         metadata.get("audio_channels"),
         metadata.get("scan_type"),
-        metadata.get("loudness"),
+        loudness,
     ))
 
     conn.commit()
@@ -447,7 +448,7 @@ def ingest_file(filepath: str) -> None:
     elif current_status == "Failed":
         # Resubmission after failure — automatically treat as new iteration
         logger.info(f"Resubmission of failed master: {filename} — creating new iteration")
-        new_iter = create_new_iteration(master_id, filepath, metadata, slate)
+        new_iter = create_new_iteration(master_id, filepath, metadata, slate, loudness)
         if auto_fail:
             logger.warning(f"Resubmission is also h264 — auto-failing iteration {new_iter}")
             _apply_auto_fail(master_id, new_iter, filepath)
@@ -459,7 +460,7 @@ def ingest_file(filepath: str) -> None:
         if auto_fail:
             # h264 conflicts are auto-failed as a new iteration — no point queuing for review
             logger.warning(f"h264 conflict auto-failed: {filename} (job={job_name}, master_id={master_id})")
-            new_iter = create_new_iteration(master_id, filepath, metadata, slate)
+            new_iter = create_new_iteration(master_id, filepath, metadata, slate, loudness)
             _apply_auto_fail(master_id, new_iter, filepath)
         else:
             # Flag it on the dashboard for a TechOp to resolve
