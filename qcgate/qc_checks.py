@@ -87,10 +87,11 @@ def _run_qc_checks(master_id: int, iteration_number: int, filepath: str) -> None
             if not ok or frame is None:
                 return None
 
-            # False-colour: replace dark pixels with green
-            DARK_THRESHOLD = 20
+            # False-colour: replace dark pixels with green.
+            # 30 matches SlateDetector.BLACK_THRESHOLD — same pixels the detector flags.
+            DARK_THRESHOLD = 30
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            dark_mask = gray < DARK_THRESHOLD
+            dark_mask = gray <= DARK_THRESHOLD
             annotated = frame.copy()
             annotated[dark_mask] = (0, 255, 0)  # BGR green
 
