@@ -88,8 +88,10 @@ def _run_qc_checks(master_id: int, iteration_number: int, filepath: str) -> None
                 return None
 
             # False-colour: replace dark pixels with green.
-            # 30 matches SlateDetector.BLACK_THRESHOLD — same pixels the detector flags.
-            DARK_THRESHOLD = 30
+            # TechOps Tools uses threshold 20 visually; our grayscale conversion
+            # produces slightly higher values for the same pixels, so 13 is calibrated
+            # to produce equivalent coverage.
+            DARK_THRESHOLD = 13
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             dark_mask = gray <= DARK_THRESHOLD
             annotated = frame.copy()
