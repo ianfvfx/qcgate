@@ -290,13 +290,7 @@
                             {% if dup_count > 0 %}
                                 <div style="color:#db50e8;font-weight:600;">Duplicate frames</div>
                                 {% for d in f.duplicate_frames %}
-                                    <div class="mono" style="color:var(--text-muted);">
-                                        {% if d.frame_filename and master.status != 'Passed' %}
-                                            <a href="/qc-frames/{{ d.frame_filename }}" target="_blank" style="color:var(--text-muted);">{{ d.timecode }}</a>
-                                        {% else %}
-                                            {{ d.timecode }}
-                                        {% endif %}
-                                    </div>
+                                    <div class="mono" style="color:var(--text-muted);">{{ d.timecode }}</div>
                                 {% endfor %}
                             {% endif %}
                             {% if has_blanking %}

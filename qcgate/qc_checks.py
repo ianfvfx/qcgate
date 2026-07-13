@@ -67,13 +67,18 @@ def _run_qc_checks(master_id: int, iteration_number: int, filepath: str) -> None
     frames_dir = qcgate_config.get("qc_frames_path") or ""
     scan_stamp = datetime.now().strftime("%Y%m%d%H%M")
 
-    def _save_frame(frame_number, timecode):
-        # type: (int, str) -> Optional[str]
-        """Extract a single frame from the source file and save as JPEG. Returns filename or None."""
+    def _save_blanking_frame(frame_number, timecode, confidence, blanking):
+        # type: (int, str, float, dict) -> Optional[str]
+        """
+        Extract a frame, apply dark-pixel false-colour (green highlight), save as JPEG.
+        Pixels below brightness threshold 20 are replaced with green — same threshold
+        the detector uses — so blanking regions light up clearly.
+        """
         if not frames_dir:
             return None
         try:
             import cv2
+            import numpy as np
             os.makedirs(frames_dir, exist_ok=True)
             cap = cv2.VideoCapture(filepath)
             cap.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
@@ -81,47 +86,67 @@ def _run_qc_checks(master_id: int, iteration_number: int, filepath: str) -> None
             cap.release()
             if not ok or frame is None:
                 return None
+
+            # False-colour: replace dark pixels with green
+            DARK_THRESHOLD = 20
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            dark_mask = gray < DARK_THRESHOLD
+            annotated = frame.copy()
+            annotated[dark_mask] = (0, 255, 0)  # BGR green
+
+            # Info bar at bottom — black band with white text
+            h, w = annotated.shape[:2]
+            bar_h = max(28, h // 30)
+            bar = np.zeros((bar_h, w, 3), dtype=np.uint8)
+            sides = []
+            if blanking.get("left"):
+                sides.append("L:%dpx" % blanking["left"])
+            if blanking.get("right"):
+                sides.append("R:%dpx" % blanking["right"])
+            if blanking.get("top"):
+                sides.append("T:%dpx" % blanking["top"])
+            if blanking.get("bottom"):
+                sides.append("B:%dpx" % blanking["bottom"])
+            label = "%s  |  %s  |  conf: %.0f%%" % (timecode, "  ".join(sides), confidence)
+            font_scale = bar_h / 40.0
+            cv2.putText(bar, label, (8, bar_h - 7),
+                        cv2.FONT_HERSHEY_SIMPLEX, font_scale, (220, 220, 220), 1, cv2.LINE_AA)
+            annotated = np.vstack([annotated, bar])
+
             tc_safe = timecode.replace(":", "").replace(";", "")
             filename = "%d_%s_%s.jpg" % (master_id, scan_stamp, tc_safe)
             dest = os.path.join(frames_dir, filename)
-            cv2.imwrite(dest, frame, [cv2.IMWRITE_JPEG_QUALITY, 90])
+            cv2.imwrite(dest, annotated, [cv2.IMWRITE_JPEG_QUALITY, 90])
             return filename
         except Exception as e:
             logger.warning("QC checks: could not save frame image: %s", e)
             return None
 
-    # Slim the segments — strip confidence_details, save one JPEG per segment
+    # Slim the segments — strip confidence_details, save one annotated JPEG per segment
     slim_segments = []
     for seg in blanking_segments:
         tc = seg.get("start_tc", "")
         frame_num = seg.get("start_frame", 0)
-        frame_filename = _save_frame(frame_num, tc)
+        confidence = seg.get("confidence", 0)
+        blanking_px = {k: seg.get("blanking", {}).get(k, 0) for k in ("left", "right", "top", "bottom")}
+        frame_filename = _save_blanking_frame(frame_num, tc, confidence, blanking_px)
         slim_segments.append({
             "start_tc": tc,
             "end_tc": seg.get("end_tc"),
             "duration_frames": seg.get("duration_frames"),
-            "confidence": round(seg.get("confidence", 0), 1),
+            "confidence": round(confidence, 1),
             "severity": seg.get("severity"),
-            "blanking": {
-                k: seg.get("blanking", {}).get(k, 0)
-                for k in ("left", "right", "top", "bottom")
-            },
+            "blanking": blanking_px,
             "frame_filename": frame_filename,
         })
 
-    # Save one JPEG per duplicate frame
-    slim_duplicates = []
-    for d in duplicate_frames:
-        frame_filename = _save_frame(d["frame"], d["timecode"])
-        slim_duplicates.append({
-            "frame": d["frame"],
-            "timecode": d["timecode"],
-            "mse": round(d["mse"], 2),
-            "frame_filename": frame_filename,
-        })
+    slim_duplicates = [
+        {"frame": d["frame"], "timecode": d["timecode"], "mse": round(d["mse"], 2)}
+        for d in duplicate_frames
+    ]
 
     qc_flags = {
-        "duplicate_frames": slim_duplicates,
+        "duplicate_frames": slim_duplicates,  # timecodes only, no images
         "blanking": {
             "has_blanking": has_blanking,
             "segments": slim_segments,
