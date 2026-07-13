@@ -196,7 +196,7 @@ def initialise_database() -> None:
         ),
         (
             "qc_frames_path",
-            "/opt/qcgate/qc_frames",
+            "/opt/qcgate_qc_frames",
             "Directory where QC flag frame images (JPEGs) are saved."
         ),
     ]
