@@ -41,7 +41,7 @@ def extract_metadata(filepath: str, ffprobe_path: str) -> Dict[str, Optional[str
             ],
             capture_output=True,
             text=True,
-            timeout=30,
+            timeout=45,
         )
 
         if result.returncode != 0:
@@ -147,7 +147,7 @@ def measure_loudness(filepath: str, ffmpeg_path: str) -> Optional[str]:
             ],
             capture_output=True,
             text=True,
-            timeout=120,
+            timeout=180,
         )
         # ebur128 summary is written to stderr
         for line in reversed(result.stderr.splitlines()):

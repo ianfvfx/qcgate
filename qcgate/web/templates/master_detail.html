@@ -285,7 +285,7 @@
                         {% set dup_count = f.duplicate_frames | length %}
                         {% set has_blanking = f.blanking.has_blanking %}
                         {% if dup_count == 0 and not has_blanking %}
-                            <span style="color:var(--green);">✓ Clean</span>
+                            <span style="color:var(--green);">✓ No issues</span>
                         {% else %}
                             {% if dup_count > 0 %}
                                 <div style="color:#db50e8;font-weight:600;">Duplicate frames</div>
@@ -310,7 +310,7 @@
                             {% endif %}
                         {% endif %}
                     {% else %}
-                        <span style="color:var(--green);">✓ Clean</span>
+                        <span style="color:var(--green);">✓ No issues</span>
                     {% endif %}
                 {% endif %}
             </td>
