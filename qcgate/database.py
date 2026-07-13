@@ -199,6 +199,16 @@ def initialise_database() -> None:
             "/opt/qcgate_qc_frames",
             "Directory where QC flag frame images (JPEGs) are saved."
         ),
+        (
+            "ingest_concurrency",
+            "3",
+            "Max files ingested simultaneously (ffprobe + loudness). Requires watcher restart."
+        ),
+        (
+            "qc_scan_concurrency",
+            "2",
+            "Max QC scans running simultaneously. Requires watcher restart."
+        ),
     ]
 
     cursor.executemany("""

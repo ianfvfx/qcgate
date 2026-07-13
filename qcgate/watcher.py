@@ -26,9 +26,14 @@ from qcgate.ingest import ingest_file
 logger = logging.getLogger(__name__)
 
 # Maximum number of files that will be ingested concurrently.
-# Additional files queue until a slot is free.
-INGEST_CONCURRENCY = 3
-_ingest_pool = ThreadPoolExecutor(max_workers=INGEST_CONCURRENCY, thread_name_prefix="ingest")
+# Read from config at startup; change takes effect after watcher restart.
+def _ingest_concurrency() -> int:
+    try:
+        return max(1, int(config.get("ingest_concurrency") or 3))
+    except (ValueError, TypeError):
+        return 3
+
+_ingest_pool = ThreadPoolExecutor(max_workers=_ingest_concurrency(), thread_name_prefix="ingest")
 
 # How long to wait after a file appears before ingesting it.
 # Gives the DCC time to finish writing before we read it.

@@ -22,9 +22,15 @@ from typing import Optional, List, Dict
 from qcgate.database import get_connection
 
 # Maximum number of QC scans that run concurrently.
-# Scans are CPU/IO heavy; queue the rest until a slot is free.
-QC_SCAN_CONCURRENCY = 2
-_qc_semaphore = threading.Semaphore(QC_SCAN_CONCURRENCY)
+# Read from config at startup; change takes effect after watcher restart.
+def _qc_scan_concurrency() -> int:
+    try:
+        from qcgate import config as _config
+        return max(1, int(_config.get("qc_scan_concurrency") or 2))
+    except (ValueError, TypeError):
+        return 2
+
+_qc_semaphore = threading.Semaphore(_qc_scan_concurrency())
 
 logger = logging.getLogger(__name__)
 
