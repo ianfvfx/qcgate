@@ -101,7 +101,7 @@ async def resolve_as_new_iteration(
 
     conn.execute("""
         UPDATE masters
-        SET current_iteration = ?, status = 'Awaiting QC',
+        SET current_iteration = ?, status = 'Ingesting',
             qc_operator = NULL,
             published_path = NULL,
             vault_path = NULL,
@@ -114,7 +114,7 @@ async def resolve_as_new_iteration(
         INSERT INTO iterations
             (master_id, iteration_number, status, exported_at, file_path,
              codec, resolution, framerate, duration, audio_channels, scan_type, loudness)
-        VALUES (?, ?, 'Awaiting QC', datetime('now'), ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, 'Ingesting', datetime('now'), ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         master_id, new_iteration, filepath,
         metadata.get("codec"), metadata.get("resolution"),

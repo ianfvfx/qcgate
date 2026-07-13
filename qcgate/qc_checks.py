@@ -98,6 +98,8 @@ def _run_qc_checks(master_id: int, iteration_number: int, filepath: str) -> None
 
     if has_issues:
         conn.execute("UPDATE masters SET status = 'Flagged' WHERE id = ?", (master_id,))
+    else:
+        conn.execute("UPDATE masters SET status = 'Awaiting QC' WHERE id = ?", (master_id,))
 
     conn.commit()
     conn.close()
@@ -113,9 +115,10 @@ def _set_scan_status(master_id: int, iteration_number: int, status: str) -> None
     try:
         conn = get_connection()
         conn.execute(
-            "UPDATE iterations SET qc_scan_status = ? WHERE master_id = ? AND iteration_number = ?",
+            "UPDATE iterations SET qc_scan_status = ?, status = 'Awaiting QC' WHERE master_id = ? AND iteration_number = ?",
             (status, master_id, iteration_number),
         )
+        conn.execute("UPDATE masters SET status = 'Awaiting QC' WHERE id = ?", (master_id,))
         conn.commit()
         conn.close()
     except Exception as e:

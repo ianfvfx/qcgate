@@ -249,7 +249,7 @@ def create_new_iteration(
     conn.execute("""
         UPDATE masters
         SET current_iteration = ?,
-            status = 'Awaiting QC',
+            status = 'Ingesting',
             qc_operator = NULL,
             published_path = NULL,
             vault_path = NULL,
@@ -276,7 +276,7 @@ def create_new_iteration(
         INSERT INTO iterations
             (master_id, iteration_number, status, exported_at, file_path,
              codec, resolution, framerate, duration, audio_channels, scan_type, loudness)
-        VALUES (?, ?, 'Awaiting QC', datetime('now'), ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, 'Ingesting', datetime('now'), ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         master_id,
         new_iteration,
@@ -363,7 +363,7 @@ def ingest_file(filepath: str) -> None:
     # Auto-fail h264 — wrong codec for a master deliverable
     codec = metadata.get("codec") or ""
     auto_fail = codec.lower() == "h264"
-    initial_status = "Failed" if auto_fail else "Awaiting QC"
+    initial_status = "Failed" if auto_fail else "Ingesting"
 
     def _apply_auto_fail(master_id, iteration_number, src_path):
         """Mark iteration as Failed and move the file to the failed folder."""

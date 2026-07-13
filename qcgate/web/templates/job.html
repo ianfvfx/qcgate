@@ -60,7 +60,9 @@
             <td>{{ m.current_iteration }}</td>
             <td class="mono">{{ m.exported_at }}</td>
             <td>
-                {% if m.status == 'Awaiting QC' %}
+                {% if m.status == 'Ingesting' %}
+                    <span class="badge badge-ingesting">Ingesting</span>
+                {% elif m.status == 'Awaiting QC' %}
                     <span class="badge badge-awaiting">Awaiting QC</span>
                 {% elif m.status == 'QC In Progress' %}
                     <span class="badge badge-progress">QC</span>

@@ -34,7 +34,9 @@
         <div class="detail-row">
             <span class="detail-label">Status</span>
             <span>
-                {% if master.status == 'Awaiting QC' %}
+                {% if master.status == 'Ingesting' %}
+                    <span class="badge badge-ingesting">Ingesting</span>
+                {% elif master.status == 'Awaiting QC' %}
                     <span class="badge badge-awaiting">Awaiting QC</span>
                 {% elif master.status == 'QC In Progress' %}
                     <span class="badge badge-progress">QC</span>
@@ -257,7 +259,9 @@
             <td class="detail-value">v{{ it.iteration_number }}</td>
             <td class="mono">{{ it.exported_at }}</td>
             <td>
-                {% if it.status == 'Awaiting QC' %}
+                {% if it.status == 'Ingesting' %}
+                    <span class="badge badge-ingesting">Ingesting</span>
+                {% elif it.status == 'Awaiting QC' %}
                     <span class="badge badge-awaiting">Awaiting QC</span>
                 {% elif it.status == 'QC In Progress' %}
                     <span class="badge badge-progress">QC</span>
