@@ -2,6 +2,7 @@
 routes/stakeholder.py — Read-only status view. No login required.
 """
 
+import json
 import os
 import logging
 from fastapi import APIRouter, Request, HTTPException, Query
@@ -74,6 +75,9 @@ async def stakeholder_master_detail(master_id: int, request: Request):
     conn.close()
 
     iterations = [dict(zip(r.keys(), tuple(r))) for r in iterations]
+    for it in iterations:
+        raw = it.get("qc_flags")
+        it["qc_flags_parsed"] = json.loads(raw) if raw else None
 
     return templates.TemplateResponse("stakeholder_detail.html", {
         "request": request,

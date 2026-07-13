@@ -155,11 +155,8 @@
                 <th>Iteration</th>
                 <th>Exported</th>
                 <th>Status</th>
-                <th>Codec</th>
-                <th>Resolution</th>
-                <th>Frame Rate</th>
-                <th>Duration</th>
                 <th>Failure Reason</th>
+                <th>QC Scan</th>
             </tr>
         </thead>
         <tbody>
@@ -182,11 +179,42 @@
                     <span class="badge badge-flagged">Flagged</span>
                 {% endif %}
             </td>
-            <td class="detail-value">{{ it.codec or '—' }}</td>
-            <td class="detail-value">{{ it.resolution or '—' }}</td>
-            <td class="detail-value">{{ it.framerate or '—' }}</td>
-            <td class="detail-value">{{ it.duration or '—' }}</td>
             <td style="color:var(--red);font-size:12px;">{{ it.failure_reason or '' }}</td>
+            <td style="font-size:11px;min-width:180px;line-height:1.7;">
+                {% if it.qc_scan_status == 'pending' %}
+                    <span style="color:var(--text-muted);">⏳ Scanning…</span>
+                {% elif it.qc_scan_status == 'failed' %}
+                    <span style="color:var(--text-muted);">⚠ Scan failed</span>
+                {% elif it.qc_scan_status == 'complete' %}
+                    {% if it.qc_flags_parsed %}
+                        {% set f = it.qc_flags_parsed %}
+                        {% set dup_count = f.duplicate_frames | length %}
+                        {% set has_blanking = f.blanking.has_blanking %}
+                        {% if dup_count == 0 and not has_blanking %}
+                            <span style="color:var(--green);">✓ No issues</span>
+                        {% else %}
+                            {% if dup_count > 0 %}
+                                <div style="color:#db50e8;font-weight:600;">Duplicate frames</div>
+                                {% for d in f.duplicate_frames %}
+                                    <div class="mono" style="color:var(--text-muted);">{{ d.timecode }}</div>
+                                {% endfor %}
+                            {% endif %}
+                            {% if has_blanking %}
+                                <div style="color:#db50e8;font-weight:600;{% if dup_count > 0 %}margin-top:6px;{% endif %}">Blanking</div>
+                                {% for seg in f.blanking.segments %}
+                                    <div class="mono" style="color:var(--text-muted);">
+                                        {{ seg.start_tc }} – {{ seg.end_tc }}
+                                        {% set b = seg.blanking %}
+                                        ({% if b.left %}L:{{ b.left }}px {% endif %}{% if b.right %}R:{{ b.right }}px {% endif %}{% if b.top %}T:{{ b.top }}px {% endif %}{% if b.bottom %}B:{{ b.bottom }}px{% endif %})
+                                    </div>
+                                {% endfor %}
+                            {% endif %}
+                        {% endif %}
+                    {% else %}
+                        <span style="color:var(--green);">✓ No issues</span>
+                    {% endif %}
+                {% endif %}
+            </td>
         </tr>
         {% endfor %}
         </tbody>
