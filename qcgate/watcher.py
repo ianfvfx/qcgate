@@ -86,26 +86,31 @@ class QCGateEventHandler(FileSystemEventHandler):
         self._seen_files = seen_files
         self._seen_lock = seen_lock
 
-    def _handle_file(self, filepath: str) -> None:
-        """Common handler for both created and moved-in files."""
+    def _submit(self, filepath: str) -> bool:
+        """
+        Mark the file as seen and submit it to the ingest pool.
+        Returns True if submitted, False if already queued or seen.
+        Doing the dedup here (before pool submission) prevents the polling
+        loop from re-detecting files that are queued but not yet running.
+        """
         filename = os.path.basename(filepath)
-        normalized = os.path.normpath(filepath)
-
-        # Ignore hidden files immediately
         if filename.startswith("."):
             logger.debug(f"Ignoring hidden file: {filepath}")
-            return
+            return False
 
-        # Deduplicate — check and add atomically so that concurrent FSEvents
-        # emitter threads and polling threads can't both slip through for the
-        # same file.
+        normalized = os.path.normpath(filepath)
         with self._seen_lock:
             if normalized in self._seen_files:
                 logger.debug(f"Already seen, skipping: {filepath}")
-                return
+                return False
             self._seen_files.add(normalized)
 
         logger.info(f"File detected: {filepath}")
+        _ingest_pool.submit(self._handle_file, filepath)
+        return True
+
+    def _handle_file(self, filepath: str) -> None:
+        """Ingest worker — runs inside the thread pool."""
 
         # Wait for file to finish writing
         time.sleep(INGEST_DELAY_SECONDS)
@@ -126,7 +131,7 @@ class QCGateEventHandler(FileSystemEventHandler):
         """Fires when a file is written to the watch folder."""
         if event.is_directory:
             return
-        _ingest_pool.submit(self._handle_file, event.src_path)
+        self._submit(event.src_path)
 
     def on_moved(self, event) -> None:
         """
@@ -155,7 +160,7 @@ class QCGateEventHandler(FileSystemEventHandler):
             logger.info(f"on_moved: rename of tracked file, updating seen_files only: {src} -> {dest}")
             return
 
-        _ingest_pool.submit(self._handle_file, event.dest_path)
+        self._submit(event.dest_path)
 
     def on_deleted(self, event) -> None:
         """
@@ -302,7 +307,7 @@ def start_watcher() -> None:
                                 logger.info(
                                     f"Polling detected new file (FSEvents missed it): {filepath}"
                                 )
-                                _ingest_pool.submit(handler._handle_file, filepath)
+                                handler._submit(filepath)
                     except (OSError, TimeoutError) as e:
                         logger.warning(f"Polling scan error for {path} (storage may be unavailable): {e}")
 
