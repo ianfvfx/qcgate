@@ -14,6 +14,7 @@ import time
 import logging
 import os
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from watchdog.observers import Observer
@@ -23,6 +24,11 @@ from qcgate import config
 from qcgate.ingest import ingest_file
 
 logger = logging.getLogger(__name__)
+
+# Maximum number of files that will be ingested concurrently.
+# Additional files queue until a slot is free.
+INGEST_CONCURRENCY = 3
+_ingest_pool = ThreadPoolExecutor(max_workers=INGEST_CONCURRENCY, thread_name_prefix="ingest")
 
 # How long to wait after a file appears before ingesting it.
 # Gives the DCC time to finish writing before we read it.
@@ -115,7 +121,7 @@ class QCGateEventHandler(FileSystemEventHandler):
         """Fires when a file is written to the watch folder."""
         if event.is_directory:
             return
-        self._handle_file(event.src_path)
+        _ingest_pool.submit(self._handle_file, event.src_path)
 
     def on_moved(self, event) -> None:
         """
@@ -144,7 +150,7 @@ class QCGateEventHandler(FileSystemEventHandler):
             logger.info(f"on_moved: rename of tracked file, updating seen_files only: {src} -> {dest}")
             return
 
-        self._handle_file(event.dest_path)
+        _ingest_pool.submit(self._handle_file, event.dest_path)
 
     def on_deleted(self, event) -> None:
         """
@@ -291,12 +297,7 @@ def start_watcher() -> None:
                                 logger.info(
                                     f"Polling detected new file (FSEvents missed it): {filepath}"
                                 )
-                                t = threading.Thread(
-                                    target=handler._handle_file,
-                                    args=(filepath,),
-                                    daemon=True,
-                                )
-                                t.start()
+                                _ingest_pool.submit(handler._handle_file, filepath)
                     except (OSError, TimeoutError) as e:
                         logger.warning(f"Polling scan error for {path} (storage may be unavailable): {e}")
 

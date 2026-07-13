@@ -21,6 +21,11 @@ from typing import Optional, List, Dict
 
 from qcgate.database import get_connection
 
+# Maximum number of QC scans that run concurrently.
+# Scans are CPU/IO heavy; queue the rest until a slot is free.
+QC_SCAN_CONCURRENCY = 2
+_qc_semaphore = threading.Semaphore(QC_SCAN_CONCURRENCY)
+
 logger = logging.getLogger(__name__)
 
 
@@ -38,6 +43,8 @@ def _run_qc_checks(master_id: int, iteration_number: int, filepath: str) -> None
         _set_scan_status(master_id, iteration_number, "failed")
         return
 
+    logger.info("QC checks: queued scan for master %d iteration %d", master_id, iteration_number)
+    _qc_semaphore.acquire()
     logger.info("QC checks: starting scan for master %d iteration %d: %s",
                 master_id, iteration_number, filepath)
 
@@ -47,11 +54,13 @@ def _run_qc_checks(master_id: int, iteration_number: int, filepath: str) -> None
     except Exception as e:
         logger.error("QC checks: SlateDetector crashed for master %d: %s", master_id, e)
         _set_scan_status(master_id, iteration_number, "failed")
+        _qc_semaphore.release()
         return
 
     if "error" in results:
         logger.error("QC checks: scan error for master %d: %s", master_id, results["error"])
         _set_scan_status(master_id, iteration_number, "failed")
+        _qc_semaphore.release()
         return
 
     duplicate_frames = results.get("duplicate_frames", [])
@@ -174,6 +183,7 @@ def _run_qc_checks(master_id: int, iteration_number: int, filepath: str) -> None
     conn.commit()
     conn.close()
 
+    _qc_semaphore.release()
     logger.info(
         "QC checks: master %d iter %d — %s (%d dup frames, %d blanking segments)",
         master_id, iteration_number, new_status,
