@@ -68,6 +68,8 @@
                     <span class="badge badge-passed">Passed</span>
                 {% elif m.status == 'Failed' %}
                     <span class="badge badge-failed">Failed</span>
+                {% elif m.status == 'Flagged' %}
+                    <span class="badge badge-flagged">Flagged</span>
                 {% endif %}
             </td>
             <td>

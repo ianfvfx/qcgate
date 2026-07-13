@@ -134,6 +134,12 @@ async def resolve_as_new_iteration(
         f"Conflict {conflict_id} resolved as new iteration {new_iteration} "
         f"for master {master_id} by {user['username']}"
     )
+
+    codec = metadata.get("codec") or ""
+    if codec.lower() != "h264":
+        from qcgate.qc_checks import run_qc_checks_async
+        run_qc_checks_async(master_id, new_iteration, filepath)
+
     return RedirectResponse(url="/conflicts", status_code=302)
 
 

@@ -53,6 +53,8 @@
                     <span class="badge badge-passed">Passed</span>
                 {% elif m.status == 'Failed' %}
                     <span class="badge badge-failed">Failed</span>
+                {% elif m.status == 'Flagged' %}
+                    <span class="badge badge-flagged">Flagged</span>
                 {% else %}
                     <span class="badge">{{ m.status }}</span>
                 {% endif %}
@@ -60,7 +62,7 @@
             <td class="mono">{{ m.qc_operator or '—' }}</td>
             <td>
                 <div class="actions" style="display:flex;flex-wrap:nowrap;gap:6px;align-items:center;">
-                {% if m.status == 'Awaiting QC' %}
+                {% if m.status == 'Awaiting QC' or m.status == 'Flagged' %}
                     <form method="post" action="/masters/{{ m.id }}/start-qc">
                         <button class="btn btn-primary btn-sm" type="submit">Start QC</button>
                     </form>

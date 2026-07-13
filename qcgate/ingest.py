@@ -21,6 +21,7 @@ from qcgate import config
 from qcgate.ffprobe import extract_metadata, measure_loudness
 from qcgate.slate import extract_slate_metadata, extract_clock_from_filename
 from qcgate.filemover import move_to_failed
+from qcgate.qc_checks import run_qc_checks_async
 
 logger = logging.getLogger(__name__)
 
@@ -441,6 +442,7 @@ def ingest_file(filepath: str) -> None:
             _apply_auto_fail(master_id, 1, filepath)
         else:
             logger.info(f"New master created: {filename} (job={job_name}, master_id={master_id})")
+            run_qc_checks_async(master_id, 1, filepath)
 
     elif current_status == "Failed":
         # Resubmission after failure — automatically treat as new iteration
@@ -449,6 +451,8 @@ def ingest_file(filepath: str) -> None:
         if auto_fail:
             logger.warning(f"Resubmission is also h264 — auto-failing iteration {new_iter}")
             _apply_auto_fail(master_id, new_iter, filepath)
+        else:
+            run_qc_checks_async(master_id, new_iter, filepath)
 
     else:
         # Conflict — status is Awaiting QC, QC In Progress, or Passed

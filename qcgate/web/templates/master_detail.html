@@ -9,7 +9,7 @@
 <div class="page-header">
     <div class="page-title mono">{{ master.filename.rsplit('.', 1)[0] }}</div>
     <div class="actions" style="display:flex;flex-wrap:nowrap;gap:6px;align-items:center;">
-        {% if master.status == 'Awaiting QC' %}
+        {% if master.status == 'Awaiting QC' or master.status == 'Flagged' %}
             <form method="post" action="/masters/{{ master.id }}/start-qc">
                 <button class="btn btn-primary" type="submit">Start QC</button>
             </form>
@@ -42,6 +42,8 @@
                     <span class="badge badge-passed">Passed</span>
                 {% elif master.status == 'Failed' %}
                     <span class="badge badge-failed">Failed</span>
+                {% elif master.status == 'Flagged' %}
+                    <span class="badge badge-flagged">Flagged</span>
                 {% endif %}
             </span>
         </div>
@@ -250,6 +252,7 @@
                 <th>Frame Rate</th>
                 <th>Duration</th>
                 <th>Failure Reason</th>
+                <th>QC Scan</th>
             </tr>
         </thead>
         <tbody>
@@ -266,6 +269,8 @@
                     <span class="badge badge-passed">Passed</span>
                 {% elif it.status == 'Failed' %}
                     <span class="badge badge-failed">Failed</span>
+                {% elif it.status == 'Flagged' %}
+                    <span class="badge badge-flagged">Flagged</span>
                 {% endif %}
             </td>
             <td class="detail-value">{{ it.codec or '—' }}</td>
@@ -273,6 +278,37 @@
             <td class="detail-value">{{ it.framerate or '—' }}</td>
             <td class="detail-value">{{ it.duration or '—' }}</td>
             <td style="color:var(--red);font-size:12px;">{{ it.failure_reason or '' }}</td>
+            <td style="font-size:11px;min-width:140px;">
+                {% if it.qc_scan_status == 'pending' %}
+                    <span style="color:var(--text-muted);">⏳ Scanning…</span>
+                {% elif it.qc_scan_status == 'failed' %}
+                    <span style="color:var(--text-muted);">⚠ Scan failed</span>
+                {% elif it.qc_scan_status == 'complete' %}
+                    {% if it.qc_flags_parsed %}
+                        {% set f = it.qc_flags_parsed %}
+                        {% set dup_count = f.duplicate_frames | length %}
+                        {% set has_blanking = f.blanking.has_blanking %}
+                        {% if dup_count == 0 and not has_blanking %}
+                            <span style="color:var(--green);">✓ Clean</span>
+                        {% else %}
+                            <span style="color:#db50e8;">
+                            {% if dup_count > 0 %}{{ dup_count }} dup frame{% if dup_count != 1 %}s{% endif %}{% endif %}
+                            {% if dup_count > 0 and has_blanking %} · {% endif %}
+                            {% if has_blanking %}
+                                {% set b = f.blanking.max %}
+                                blanking
+                                {% if b.left %}L:{{ b.left }}px{% endif %}
+                                {% if b.right %}R:{{ b.right }}px{% endif %}
+                                {% if b.top %}T:{{ b.top }}px{% endif %}
+                                {% if b.bottom %}B:{{ b.bottom }}px{% endif %}
+                            {% endif %}
+                            </span>
+                        {% endif %}
+                    {% else %}
+                        <span style="color:var(--green);">✓ Clean</span>
+                    {% endif %}
+                {% endif %}
+            </td>
         </tr>
         {% endfor %}
         </tbody>

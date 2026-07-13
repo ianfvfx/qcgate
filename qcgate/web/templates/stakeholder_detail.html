@@ -37,6 +37,8 @@
                     <span class="badge badge-passed">Passed</span>
                 {% elif master.status == 'Failed' %}
                     <span class="badge badge-failed">Failed</span>
+                {% elif master.status == 'Flagged' %}
+                    <span class="badge badge-flagged">Flagged</span>
                 {% endif %}
             </span>
         </div>
@@ -172,6 +174,8 @@
                     <span class="badge badge-passed">Passed</span>
                 {% elif it.status == 'Failed' %}
                     <span class="badge badge-failed">Failed</span>
+                {% elif it.status == 'Flagged' %}
+                    <span class="badge badge-flagged">Flagged</span>
                 {% endif %}
             </td>
             <td class="detail-value">{{ it.codec or '—' }}</td>

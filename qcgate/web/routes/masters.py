@@ -3,6 +3,7 @@ routes/masters.py — Master detail view and status action endpoints.
 """
 
 import os
+import json
 import logging
 from typing import Optional
 from fastapi import APIRouter, Request, Depends, Form, HTTPException
@@ -55,6 +56,9 @@ async def master_detail(master_id: int, request: Request, user: dict = Depends(r
     conn.close()
 
     iterations = [dict(zip(r.keys(), tuple(r))) for r in iterations]
+    for it in iterations:
+        raw = it.get("qc_flags")
+        it["qc_flags_parsed"] = json.loads(raw) if raw else None
     latest_iteration = iterations[0] if iterations else None
     transcoded = request.query_params.get("transcoded")
 

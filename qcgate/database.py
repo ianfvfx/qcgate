@@ -95,6 +95,8 @@ def initialise_database() -> None:
             audio_channels   TEXT,
             scan_type        TEXT,
             loudness         TEXT,
+            qc_flags         TEXT,
+            qc_scan_status   TEXT,
             UNIQUE(master_id, iteration_number)
         )
     """)
