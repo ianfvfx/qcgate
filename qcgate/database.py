@@ -209,6 +209,11 @@ def initialise_database() -> None:
             "2",
             "Max QC scans running simultaneously. Requires watcher restart."
         ),
+        (
+            "page_size",
+            "50",
+            "Number of masters shown per page on the dashboard and stakeholder views."
+        ),
     ]
 
     cursor.executemany("""

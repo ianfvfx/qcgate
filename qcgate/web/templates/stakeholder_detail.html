@@ -64,6 +64,15 @@
             <span class="detail-value">{{ master.qc_operator }}</span>
         </div>
         {% endif %}
+        <div class="detail-row">
+            <span class="detail-label">Path</span>
+            <span class="detail-value mono" style="word-break:break-all;font-size:11px;">
+                {% if master.vault_path %}{{ master.vault_path }}
+                {% elif master.status == 'Passed' and master.published_path %}{{ master.published_path }}
+                {% elif latest_iteration and latest_iteration.file_path %}{{ latest_iteration.file_path }}
+                {% else %}—{% endif %}
+            </span>
+        </div>
     </div>
 
     <!-- Slate metadata from OCR -->
@@ -203,7 +212,11 @@
                                 <div style="color:#db50e8;font-weight:600;{% if dup_count > 0 %}margin-top:6px;{% endif %}">Blanking</div>
                                 {% for seg in f.blanking.segments %}
                                     <div class="mono" style="color:var(--text-muted);">
-                                        {{ seg.start_tc }} – {{ seg.end_tc }}
+                                        {% if master.status != 'Passed' and seg.frame_filename %}
+                                            <a href="/qc-frames/{{ seg.frame_filename }}" target="_blank">{{ seg.start_tc }} – {{ seg.end_tc }}</a>
+                                        {% else %}
+                                            {{ seg.start_tc }} – {{ seg.end_tc }}
+                                        {% endif %}
                                         {% set b = seg.blanking %}
                                         ({% if b.left %}L:{{ b.left }}px {% endif %}{% if b.right %}R:{{ b.right }}px {% endif %}{% if b.top %}T:{{ b.top }}px {% endif %}{% if b.bottom %}B:{{ b.bottom }}px{% endif %})
                                     </div>

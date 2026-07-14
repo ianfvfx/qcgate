@@ -50,7 +50,7 @@ async def master_detail(master_id: int, request: Request, user: dict = Depends(r
     """, (master_id,)).fetchall()
 
     presets = conn.execute(
-        "SELECT id, name FROM transcode_presets ORDER BY name"
+        "SELECT id, name FROM transcode_presets ORDER BY path"
     ).fetchall() if master["status"] == "Passed" else []
 
     conn.close()

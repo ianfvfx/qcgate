@@ -36,7 +36,7 @@ def get_all_users():
 def get_all_presets():
     conn = get_connection()
     rows = conn.execute(
-        "SELECT id, name, path, created_at FROM transcode_presets ORDER BY name"
+        "SELECT id, name, path, created_at FROM transcode_presets ORDER BY path"
     ).fetchall()
     conn.close()
     return [dict(zip(r.keys(), tuple(r))) for r in rows]

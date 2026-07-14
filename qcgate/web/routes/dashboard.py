@@ -8,22 +8,28 @@ from fastapi.templating import Jinja2Templates
 from pathlib import Path
 
 from qcgate.database import get_connection
+from qcgate import config
 from qcgate.web.routes.auth import require_login
 
 router = APIRouter()
 templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
 
 
-PAGE_SIZE = 50
+def _page_size() -> int:
+    try:
+        return max(1, int(config.get("page_size") or 50))
+    except (ValueError, TypeError):
+        return 50
 
 
 @router.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request, user: dict = Depends(require_login), page: int = Query(1, ge=1)):
+    page_size = _page_size()
     conn = get_connection()
 
     total = conn.execute("SELECT COUNT(*) FROM masters").fetchone()[0]
 
-    offset = (page - 1) * PAGE_SIZE
+    offset = (page - 1) * page_size
     masters = conn.execute("""
         SELECT
             m.id, m.filename, m.current_iteration, m.status,
@@ -36,7 +42,7 @@ async def dashboard(request: Request, user: dict = Depends(require_login), page:
             ON i.master_id = m.id AND i.iteration_number = m.current_iteration
         ORDER BY i.exported_at DESC
         LIMIT ? OFFSET ?
-    """, (PAGE_SIZE, offset)).fetchall()
+    """, (page_size, offset)).fetchall()
 
     conflicts = conn.execute(
         "SELECT id FROM conflicts WHERE resolved = 0"
@@ -44,7 +50,7 @@ async def dashboard(request: Request, user: dict = Depends(require_login), page:
 
     conn.close()
 
-    total_pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
+    total_pages = max(1, (total + page_size - 1) // page_size)
 
     return templates.TemplateResponse("dashboard.html", {
         "request": request,
