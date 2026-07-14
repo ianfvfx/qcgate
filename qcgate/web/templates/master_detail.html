@@ -23,7 +23,8 @@
             <button class="btn btn-success" onclick="openPassModal()">Pass</button>
             <button class="btn btn-danger" onclick="openFailModal()">Fail</button>
         {% endif %}
-        <button class="btn btn-neutral" onclick="openRenameModal()">Rename</button>
+        <button class="btn btn-neutral" onclick="openRenameModal()">Rename Master</button>
+        <button class="btn btn-neutral" onclick="openRenameFileModal()">Rename File</button>
     </div>
 </div>
 
@@ -353,18 +354,38 @@
     </div>
 </div>
 
-<!-- Rename modal -->
+<!-- Rename Master modal -->
 <div class="modal-backdrop" id="rename-modal">
     <div class="modal">
         <h3>Rename Master</h3>
+        <p style="color:var(--text-muted);font-size:12px;margin-bottom:16px;">Updates the display name in QCGate only. Files on disk are not touched.</p>
         <form method="post" action="/masters/{{ master.id }}/rename">
             <div class="form-group">
-                <label for="new_filename">New filename</label>
+                <label for="new_filename">New master name</label>
                 <input type="text" name="new_filename" id="new_filename" value="{{ master.filename }}">
             </div>
             <div class="modal-actions">
                 <button type="button" class="btn btn-neutral" onclick="closeModal('rename-modal')">Cancel</button>
-                <button type="submit" class="btn btn-primary">Rename</button>
+                <button type="submit" class="btn btn-primary">Rename Master</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Rename File modal -->
+<div class="modal-backdrop" id="rename-file-modal">
+    <div class="modal">
+        <h3>Rename File</h3>
+        <p style="color:var(--text-muted);font-size:12px;margin-bottom:16px;">Renames the file on disk and updates all stored paths. The master display name is unchanged.</p>
+        <form method="post" action="/masters/{{ master.id }}/rename-file">
+            <div class="form-group">
+                <label for="new_file_filename">New filename</label>
+                <input type="text" name="new_filename" id="new_file_filename"
+                    value="{{ latest_iteration.file_path.split('/')[-1] if latest_iteration and latest_iteration.file_path else master.filename }}">
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-neutral" onclick="closeModal('rename-file-modal')">Cancel</button>
+                <button type="submit" class="btn btn-primary">Rename File</button>
             </div>
         </form>
     </div>
@@ -376,6 +397,7 @@
 function openPassModal() { document.getElementById('pass-modal').classList.add('open'); }
 function openFailModal() { document.getElementById('fail-modal').classList.add('open'); }
 function openRenameModal() { document.getElementById('rename-modal').classList.add('open'); }
+function openRenameFileModal() { document.getElementById('rename-file-modal').classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 document.querySelectorAll('.modal-backdrop').forEach(b => {
     b.addEventListener('click', e => { if (e.target === b) b.classList.remove('open'); });

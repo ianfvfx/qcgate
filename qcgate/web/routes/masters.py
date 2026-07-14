@@ -445,13 +445,13 @@ async def rename_master(
     user: dict = Depends(require_login),
     new_filename: str = Form(...),
 ):
+    """Rename the master record only. Does not touch files on disk."""
     master = get_master_or_404(master_id)
     new_filename = new_filename.strip()
 
     if not new_filename:
         raise HTTPException(status_code=400, detail="Filename cannot be empty.")
 
-    # Check uniqueness within the job
     conn = get_connection()
     conflict = conn.execute("""
         SELECT id FROM masters WHERE job_id = ? AND filename = ? AND id != ?
@@ -461,32 +461,77 @@ async def rename_master(
         conn.close()
         raise HTTPException(status_code=400, detail="A master with that filename already exists in this job.")
 
-    # Rename the file on disk if it currently exists in for_qc
-    watch_path = config.get("watch_path")
-    job_name = master["job_name"]
-    for_qc_dir = watch_path.replace("*", job_name) if "*" in watch_path else watch_path
-    old_path = os.path.join(for_qc_dir, master["filename"])
-    new_path = os.path.join(for_qc_dir, new_filename)
-
-    if os.path.exists(old_path):
-        try:
-            os.rename(old_path, new_path)
-            logger.info(f"File renamed on disk: {old_path} -> {new_path}")
-        except OSError as e:
-            conn.close()
-            raise HTTPException(status_code=500, detail=f"File rename failed: {e}")
-    else:
-        conn.close()
-        raise HTTPException(
-            status_code=400,
-            detail=f"File not found on disk at expected location: {old_path}. Rename cancelled."
-        )
-
     conn.execute("""
         UPDATE masters SET filename = ?, updated_at = datetime('now') WHERE id = ?
     """, (new_filename, master_id))
     conn.commit()
     conn.close()
-    logger.info(f"Master {master_id} renamed to '{new_filename}' by {user['username']}")
+    logger.info(f"Master {master_id} display name changed to '{new_filename}' by {user['username']}")
+
+    return RedirectResponse(url=f"/masters/{master_id}", status_code=302)
+
+
+@router.post("/masters/{master_id}/rename-file")
+async def rename_master_file(
+    master_id: int,
+    request: Request,
+    user: dict = Depends(require_login),
+    new_filename: str = Form(...),
+):
+    """Rename the physical file on disk and update all stored paths. Master display name unchanged."""
+    master = get_master_or_404(master_id)
+    new_filename = new_filename.strip()
+
+    if not new_filename:
+        raise HTTPException(status_code=400, detail="Filename cannot be empty.")
+
+    conn = get_connection()
+    iteration_row = conn.execute("""
+        SELECT id, file_path FROM iterations
+        WHERE master_id = ? ORDER BY iteration_number DESC LIMIT 1
+    """, (master_id,)).fetchone()
+
+    if not iteration_row or not iteration_row["file_path"]:
+        conn.close()
+        raise HTTPException(status_code=400, detail="No file path recorded for this master.")
+
+    old_file_path = iteration_row["file_path"]
+    old_dir = os.path.dirname(old_file_path)
+    new_file_path = os.path.join(old_dir, new_filename)
+
+    if not os.path.exists(old_file_path):
+        conn.close()
+        raise HTTPException(
+            status_code=400,
+            detail=f"File not found on disk: {old_file_path}"
+        )
+
+    try:
+        os.rename(old_file_path, new_file_path)
+        logger.info(f"File renamed on disk: {old_file_path} -> {new_file_path}")
+    except OSError as e:
+        conn.close()
+        raise HTTPException(status_code=500, detail=f"File rename failed: {e}")
+
+    # Update the iteration's stored path
+    conn.execute("""
+        UPDATE iterations SET file_path = ? WHERE id = ?
+    """, (new_file_path, iteration_row["id"]))
+
+    # Update master published_path and vault_path if they reference the old filename
+    old_basename = os.path.basename(old_file_path)
+    for col in ("published_path", "vault_path"):
+        stored = master.get(col)
+        if stored and os.path.basename(stored) == old_basename:
+            new_stored = os.path.join(os.path.dirname(stored), new_filename)
+            conn.execute(
+                "UPDATE masters SET %s = ? WHERE id = ?" % col,
+                (new_stored, master_id)
+            )
+
+    conn.execute("UPDATE masters SET updated_at = datetime('now') WHERE id = ?", (master_id,))
+    conn.commit()
+    conn.close()
+    logger.info(f"Master {master_id} file renamed to '{new_filename}' by {user['username']}")
 
     return RedirectResponse(url=f"/masters/{master_id}", status_code=302)
