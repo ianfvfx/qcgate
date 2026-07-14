@@ -38,7 +38,9 @@ def update(job_id: int, current: str, copied: bool, skipped: bool = False, error
         p = _state.get(job_id)
         if p is None:
             return
-        p["done"] += 1
+        # Skipped masters were already vaulted — don't count against the total
+        if not skipped:
+            p["done"] += 1
         p["current"] = current
         if copied:
             p["copied"] += 1
