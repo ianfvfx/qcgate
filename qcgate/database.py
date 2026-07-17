@@ -68,6 +68,7 @@ def initialise_database() -> None:
             proxy_path          TEXT,
             vault_path          TEXT,
             vault_proxy_path    TEXT,
+            subfolder           TEXT,
             created_at          TEXT NOT NULL DEFAULT (datetime('now')),
             updated_at          TEXT NOT NULL DEFAULT (datetime('now')),
             UNIQUE(job_id, filename)

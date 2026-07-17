@@ -85,6 +85,50 @@ def _derive_title(filename_stem: str, job_name: str) -> Optional[str]:
     return title or None
 
 
+_TIMESTAMP_DIR_RE = re.compile(r'^\d{4}_\d{2}_\d{2}_\d{4}$')
+
+
+def derive_subfolder(filepath: str, watch_path: str) -> Optional[str]:
+    """
+    Derive the meaningful subfolder between the watch root and the file.
+
+    Strips the watch root prefix, then strips any path components that look
+    like export timestamps (YYYY_MM_DD_HHMM). Whatever remains (excluding
+    the filename) is the subfolder to preserve on pass/fail.
+
+    Returns None if there is no meaningful subfolder.
+    """
+    filepath = os.path.normpath(filepath)
+    watch_path = os.path.normpath(watch_path)
+
+    # Resolve the watch root (the directory actually being watched for this job)
+    if "*" in watch_path:
+        parts = watch_path.split("*")
+        prefix = parts[0].rstrip("/")
+        suffix = parts[1].lstrip("/") if len(parts) > 1 else ""
+        # Find job name segment
+        remainder = filepath[len(prefix):].lstrip("/")
+        job_segment = remainder.split("/")[0] if remainder else ""
+        watch_root = os.path.join(prefix, job_segment, suffix) if suffix else os.path.join(prefix, job_segment)
+    else:
+        watch_root = watch_path
+
+    watch_root = os.path.normpath(watch_root)
+
+    if not filepath.startswith(watch_root):
+        return None
+
+    # Relative path from watch root, excluding the filename
+    rel = filepath[len(watch_root):].lstrip("/")
+    parts_rel = rel.split("/")
+    dir_parts = parts_rel[:-1]  # drop filename
+
+    # Strip timestamp-pattern components
+    meaningful = [p for p in dir_parts if not _TIMESTAMP_DIR_RE.match(p)]
+
+    return "/".join(meaningful) if meaningful else None
+
+
 def should_ignore(filepath: str) -> bool:
     """
     Return True if this file should be silently ignored.
@@ -323,11 +367,15 @@ def ingest_file(filepath: str) -> None:
     ffmpeg_path = config.get("ffmpeg_path")
     tesseract_path = config.get("tesseract_path")
 
-    # Derive job name and path
+    # Derive job name, path, and subfolder
     job_name = derive_job_name(filepath, watch_path)
     if not job_name:
         logger.error(f"Could not derive job name for: {filepath}")
         return
+
+    subfolder = derive_subfolder(filepath, watch_path)
+    if subfolder:
+        logger.info(f"Subfolder detected: '{subfolder}' for {filepath}")
 
     # Job root path is the parent of the watch folder
     watch_dir = os.path.dirname(filepath)
@@ -379,7 +427,7 @@ def ingest_file(filepath: str) -> None:
         failed_template = config.get("failed_path")
         if failed_template:
             try:
-                failed_dest = move_to_failed(src_path, failed_template, job_name)
+                failed_dest = move_to_failed(src_path, failed_template, job_name, subfolder)
                 conn = get_connection()
                 conn.execute(
                     "UPDATE iterations SET file_path = ? WHERE master_id = ? AND iteration_number = ?",
@@ -398,9 +446,9 @@ def ingest_file(filepath: str) -> None:
         # Brand new file — create master and first iteration
         conn = get_connection()
         cursor = conn.execute("""
-            INSERT INTO masters (job_id, filename, current_iteration, status)
-            VALUES (?, ?, 1, ?)
-        """, (job_id, filename, initial_status))
+            INSERT INTO masters (job_id, filename, current_iteration, status, subfolder)
+            VALUES (?, ?, 1, ?, ?)
+        """, (job_id, filename, initial_status, subfolder))
         master_id = cursor.lastrowid
 
         conn.execute("""

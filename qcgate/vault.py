@@ -73,7 +73,8 @@ def vault_job(
     # Get all passed masters for this job
     masters = conn.execute("""
         SELECT id, filename, published_path, proxy_path, proxy_status, vault_path,
-               slate_title, slate_clock, slate_duration, slate_aspect, created_at
+               slate_title, slate_clock, slate_duration, slate_aspect, created_at,
+               subfolder
         FROM masters
         WHERE job_id = ? AND status = 'Passed'
     """, (job_id,)).fetchall()
@@ -109,12 +110,16 @@ def vault_job(
             progress_callback(filename, copied=False, skipped=False, error=False, current_only=True)
 
         try:
-            # Ensure vault directories exist
-            os.makedirs(vault_masters_dir, exist_ok=True)
+            # Apply subfolder if set — vault lands at {job}/{subfolder}/filename
+            subfolder = master.get("subfolder") or ""
+            master_dest_dir = os.path.join(vault_masters_dir, subfolder) if subfolder else vault_masters_dir
+            proxy_dest_dir = os.path.join(master_dest_dir, "proxies")
+
+            os.makedirs(master_dest_dir, exist_ok=True)
 
             # Copy master file — preserve the full timestamped filename from published_path
             source_filename = os.path.basename(published_path)
-            vault_master_path = os.path.join(vault_masters_dir, source_filename)
+            vault_master_path = os.path.join(master_dest_dir, source_filename)
             logger.info(f"Copying master to vault: {published_path} -> {vault_master_path}")
             shutil.copy2(published_path, vault_master_path)
 
@@ -122,9 +127,9 @@ def vault_job(
             vault_proxy_path = None
             proxy_path = master.get("proxy_path")
             if proxy_path and os.path.exists(proxy_path) and master.get("proxy_status") == "ready":
-                os.makedirs(vault_proxies_dir, exist_ok=True)
+                os.makedirs(proxy_dest_dir, exist_ok=True)
                 proxy_filename = os.path.basename(proxy_path)
-                vault_proxy_path = os.path.join(vault_proxies_dir, proxy_filename)
+                vault_proxy_path = os.path.join(proxy_dest_dir, proxy_filename)
                 logger.info(f"Copying proxy to vault: {proxy_path} -> {vault_proxy_path}")
                 shutil.copy2(proxy_path, vault_proxy_path)
 

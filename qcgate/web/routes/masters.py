@@ -148,9 +148,9 @@ async def pass_master(master_id: int, request: Request, user: dict = Depends(req
             detail=f"Source file not found for: {master['filename']}"
         )
 
-    # Move from forQC to passed folder
+    # Move from watch folder to passed folder, preserving subfolder if set
     try:
-        published_path = move_to_passed(src_path, passed_template, job_name)
+        published_path = move_to_passed(src_path, passed_template, job_name, master.get("subfolder"))
     except Exception as e:
         logger.error(f"Failed to move master {master_id} to passed: {e}")
         raise HTTPException(status_code=500, detail=f"File move failed: {e}")
@@ -267,7 +267,7 @@ async def fail_master(
         )
 
     try:
-        failed_dest = move_to_failed(src_path, failed_template, job_name)
+        failed_dest = move_to_failed(src_path, failed_template, job_name, master.get("subfolder"))
     except Exception as e:
         logger.error(f"Failed to move master {master_id} to failed: {e}")
         raise HTTPException(status_code=500, detail=f"File move failed: {e}")

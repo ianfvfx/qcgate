@@ -214,19 +214,31 @@ class QCGateEventHandler(FileSystemEventHandler):
         Remove from seen_files so a re-export of the same filename
         is detected correctly.
 
-        On macOS SMB/AFP volumes, spurious delete events fire while a file
-        is still being written. Guard with os.path.exists so those don't
-        evict a file we're actively tracking.
+        SMB/AFP volumes fire spurious delete events while a file is still
+        being written — the file briefly disappears then reappears. Guard
+        against this by waiting 3 seconds before committing the removal;
+        if the file has reappeared by then it was a transient blink.
         """
         if event.is_directory:
             return
         if os.path.exists(event.src_path):
             logger.info(f"on_deleted: file still on disk, ignoring spurious event: {event.src_path}")
             return
-        normalized = os.path.normpath(event.src_path)
-        with self._seen_lock:
-            self._seen_files.discard(normalized)
-        logger.info(f"on_deleted: removed from seen_files: {event.src_path}")
+
+        src_path = event.src_path
+        seen_files = self._seen_files
+        seen_lock = self._seen_lock
+
+        def _deferred_remove():
+            if os.path.exists(src_path):
+                logger.info(f"on_deleted: file reappeared after delay, ignoring spurious event: {src_path}")
+                return
+            normalized = os.path.normpath(src_path)
+            with seen_lock:
+                seen_files.discard(normalized)
+            logger.info(f"on_deleted: removed from seen_files: {src_path}")
+
+        threading.Timer(3.0, _deferred_remove).start()
 
 
 def resolve_watch_path(watch_path: str) -> list:

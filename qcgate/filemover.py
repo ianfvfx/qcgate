@@ -10,28 +10,25 @@ import shutil
 import logging
 import os
 from pathlib import Path
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
 
-def move_to_failed(src_path: str, failed_path_template: str, job_name: str) -> str:
+def move_to_failed(
+    src_path: str,
+    failed_path_template: str,
+    job_name: str,
+    subfolder: Optional[str] = None,
+) -> str:
     """
-    Move a file from for_qc to the failed folder.
-
-    Args:
-        src_path: Full path to the file currently in for_qc.
-        failed_path_template: Config value e.g. /Volumes/jobs/*/masters/failed
-                              or with {job} placeholder.
-        job_name: The job name derived at ingest (e.g. blackKiteStudios_01234).
-
-    Returns:
-        The full destination path the file was moved to.
-
-    Raises:
-        FileNotFoundError: If the source file does not exist.
-        OSError: If the move operation fails.
+    Move a file from the watch folder to the failed folder.
+    If subfolder is provided, it is appended to the destination so the
+    file lands at failed/subfolder/filename rather than failed/filename.
     """
     dest_dir = _resolve_path(failed_path_template, job_name)
+    if subfolder:
+        dest_dir = os.path.join(dest_dir, subfolder)
     dest_path = os.path.join(dest_dir, os.path.basename(src_path))
 
     _ensure_dir(dest_dir)
@@ -43,12 +40,19 @@ def move_to_failed(src_path: str, failed_path_template: str, job_name: str) -> s
     return dest_path
 
 
-def copy_to_passed(src_path: str, passed_path_template: str, job_name: str) -> str:
+def copy_to_passed(
+    src_path: str,
+    passed_path_template: str,
+    job_name: str,
+    subfolder: Optional[str] = None,
+) -> str:
     """
-    Copy a file from for_qc to the passed/published folder.
+    Copy a file from the watch folder to the passed/published folder.
     Kept for reference but move_to_passed is preferred.
     """
     dest_dir = _resolve_path(passed_path_template, job_name)
+    if subfolder:
+        dest_dir = os.path.join(dest_dir, subfolder)
     dest_path = os.path.join(dest_dir, os.path.basename(src_path))
     _ensure_dir(dest_dir)
     logger.info(f"Copying to passed: {src_path} -> {dest_path}")
@@ -57,24 +61,20 @@ def copy_to_passed(src_path: str, passed_path_template: str, job_name: str) -> s
     return dest_path
 
 
-def move_to_passed(src_path: str, passed_path_template: str, job_name: str) -> str:
+def move_to_passed(
+    src_path: str,
+    passed_path_template: str,
+    job_name: str,
+    subfolder: Optional[str] = None,
+) -> str:
     """
-    Move a file from for_qc to the passed/published folder.
-    Preferred over copy_to_passed — files should not remain in for_qc after passing.
-
-    Args:
-        src_path: Full path to the file currently in for_qc.
-        passed_path_template: Config value with {job} or * placeholder.
-        job_name: The job name derived at ingest.
-
-    Returns:
-        The full destination path the file was moved to.
-
-    Raises:
-        FileNotFoundError: If the source file does not exist.
-        OSError: If the move operation fails.
+    Move a file from the watch folder to the passed/published folder.
+    If subfolder is provided, it is appended to the destination so the
+    file lands at passed/subfolder/filename rather than passed/filename.
     """
     dest_dir = _resolve_path(passed_path_template, job_name)
+    if subfolder:
+        dest_dir = os.path.join(dest_dir, subfolder)
     dest_path = os.path.join(dest_dir, os.path.basename(src_path))
     _ensure_dir(dest_dir)
     logger.info(f"Moving to passed: {src_path} -> {dest_path}")
