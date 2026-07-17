@@ -156,7 +156,7 @@ def initialise_database() -> None:
     defaults = [
         (
             "watch_path",
-            "/jobs/*/masters/for_qc",
+            "/jobs/*/mastersExport",
             "Glob pattern for incoming files. * is treated as the job name."
         ),
         (

@@ -104,7 +104,6 @@ function filterTable(query) {
         row.style.display = (filename.includes(q) || job.includes(q)) ? '' : 'none';
     });
 }
-// Auto-refresh every 60 seconds
-setTimeout(() => location.reload(), 60000);
+setTimeout(() => location.reload(), 120000);
 </script>
 {% endblock %}

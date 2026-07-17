@@ -16,6 +16,7 @@ import os
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from typing import List
 
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler, FileCreatedEvent, FileMovedEvent
@@ -75,6 +76,31 @@ def wait_for_file_stable(filepath: str) -> bool:
     return True  # Ingest regardless; ffprobe may fail and can be re-run from the dashboard
 
 
+def _ignored_path_segments() -> List[str]:
+    """
+    Return path substrings that should never be ingested.
+    Derived from passed_path and failed_path config values — strips any
+    glob/placeholder so the literal directory name is used for matching.
+    """
+    segments = []
+    for key in ("passed_path", "failed_path"):
+        raw = config.get(key) or ""
+        # Strip glob prefix (e.g. /jobs/*/mastersExport/passed -> mastersExport/passed)
+        part = raw.split("*")[-1].strip("/")
+        if part:
+            segments.append(part)
+    return segments
+
+
+def _is_ignored(filepath: str) -> bool:
+    """Return True if filepath falls inside a passed or failed directory."""
+    normalized = os.path.normpath(filepath)
+    for segment in _ignored_path_segments():
+        if segment in normalized:
+            return True
+    return False
+
+
 class QCGateEventHandler(FileSystemEventHandler):
     """
     Handles filesystem events from watchdog.
@@ -96,6 +122,10 @@ class QCGateEventHandler(FileSystemEventHandler):
         filename = os.path.basename(filepath)
         if filename.startswith("."):
             logger.debug(f"Ignoring hidden file: {filepath}")
+            return False
+
+        if _is_ignored(filepath):
+            logger.debug(f"Ignoring path in watch_ignore list: {filepath}")
             return False
 
         normalized = os.path.normpath(filepath)
@@ -127,9 +157,24 @@ class QCGateEventHandler(FileSystemEventHandler):
         except Exception as e:
             logger.error(f"Ingest failed for {filepath}: {e}", exc_info=True)
 
+    def _scan_directory(self, dirpath: str) -> None:
+        """
+        Scan a directory tree and submit any files not yet seen.
+        Used when a whole directory is moved or created in the watch path,
+        since individual file events don't fire for files already inside it.
+        """
+        try:
+            for root, dirnames, filenames in os.walk(dirpath):
+                dirnames[:] = [d for d in dirnames if not d.startswith(".")]
+                for filename in filenames:
+                    self._submit(os.path.join(root, filename))
+        except (OSError, TimeoutError) as e:
+            logger.warning(f"Could not scan new directory {dirpath}: {e}")
+
     def on_created(self, event: FileCreatedEvent) -> None:
-        """Fires when a file is written to the watch folder."""
+        """Fires when a file or directory is created in the watch folder."""
         if event.is_directory:
+            self._scan_directory(event.src_path)
             return
         self._submit(event.src_path)
 
@@ -141,6 +186,7 @@ class QCGateEventHandler(FileSystemEventHandler):
         re-export of the same filename is picked up correctly.
         """
         if event.is_directory:
+            self._scan_directory(event.dest_path)
             return
         src = os.path.normpath(event.src_path)
         dest = os.path.normpath(event.dest_path)
@@ -251,7 +297,10 @@ def start_watcher() -> None:
     for path in paths_to_watch:
         try:
             for dirpath, dirnames, filenames in os.walk(path):
-                dirnames[:] = [d for d in dirnames if not d.startswith(".")]
+                dirnames[:] = [
+                    d for d in dirnames
+                    if not d.startswith(".") and not _is_ignored(os.path.join(dirpath, d))
+                ]
                 for filename in filenames:
                     if not filename.startswith("."):
                         seen_files.add(os.path.normpath(os.path.join(dirpath, filename)))
@@ -295,8 +344,10 @@ def start_watcher() -> None:
                 for path in paths_to_watch:
                     try:
                         for dirpath, dirnames, filenames in os.walk(path):
-                            # Skip hidden subdirectories
-                            dirnames[:] = [d for d in dirnames if not d.startswith(".")]
+                            dirnames[:] = [
+                                d for d in dirnames
+                                if not d.startswith(".") and not _is_ignored(os.path.join(dirpath, d))
+                            ]
                             for filename in filenames:
                                 if filename.startswith("."):
                                     continue
