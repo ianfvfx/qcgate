@@ -85,7 +85,7 @@ def _derive_title(filename_stem: str, job_name: str) -> Optional[str]:
     return title or None
 
 
-_TIMESTAMP_DIR_RE = re.compile(r'^\d{4}_\d{2}_\d{2}_\d{4}$')
+_TIMESTAMP_DIR_RE = re.compile(r'^\d{4}_\d{2}_\d{2}(_\d{4})?$')
 
 
 def derive_subfolder(filepath: str, watch_path: str) -> Optional[str]:

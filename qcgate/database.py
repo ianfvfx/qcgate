@@ -215,6 +215,11 @@ def initialise_database() -> None:
             "50",
             "Number of masters shown per page on the dashboard and stakeholder views."
         ),
+        (
+            "proxy_concurrency",
+            "2",
+            "Max proxy encodes running simultaneously. Requires web server restart."
+        ),
     ]
 
     cursor.executemany("""

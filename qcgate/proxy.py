@@ -28,6 +28,15 @@ PROXY_BITRATE = "8M"
 AUDIO_BITRATE = "192k"
 
 
+def _proxy_concurrency() -> int:
+    try:
+        return max(1, int(config.get("proxy_concurrency") or 2))
+    except (ValueError, TypeError):
+        return 2
+
+_proxy_semaphore = threading.Semaphore(_proxy_concurrency())
+
+
 def _aspect_ratio(width: int, height: int) -> str:
     """Return a simplified aspect ratio string."""
     from math import gcd
@@ -78,6 +87,8 @@ def generate_proxy(master_id: int, source_path: str) -> None:
     ffmpeg_path = config.get("ffmpeg_path") or "ffmpeg"
     ffprobe_path = config.get("ffprobe_path") or "ffprobe"
 
+    logger.info(f"Proxy queued for master {master_id}: {source_path}")
+    _proxy_semaphore.acquire()
     logger.info(f"Starting proxy generation for master {master_id}: {source_path}")
 
     # Mark proxy as generating in the database
@@ -133,6 +144,8 @@ def generate_proxy(master_id: int, source_path: str) -> None:
     except Exception as e:
         logger.error(f"Proxy generation failed for master {master_id}: {e}")
         _update_proxy_status(master_id, "failed", None)
+    finally:
+        _proxy_semaphore.release()
 
 
 def generate_proxy_async(master_id: int, source_path: str) -> None:
