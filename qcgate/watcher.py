@@ -79,21 +79,30 @@ def wait_for_file_stable(filepath: str) -> bool:
 def _ignored_path_segments() -> List[str]:
     """
     Return path substrings that should never be ingested.
-    Derived from passed_path and failed_path config values — strips any
-    glob/placeholder so the literal directory name is used for matching.
+
+    Two sources:
+    1. passed_path and failed_path config values — the post-* portion is used
+       so files moved there by QCGate are never re-ingested.
+    2. watch_ignore_dirs config — comma-separated folder names for any other
+       directories within the watch tree that should always be skipped
+       (e.g. temp, supplied).
     """
     segments = []
     for key in ("passed_path", "failed_path"):
         raw = config.get(key) or ""
-        # Strip glob prefix (e.g. /jobs/*/mastersExport/passed -> mastersExport/passed)
         part = raw.split("*")[-1].strip("/")
         if part:
             segments.append(part)
+    extra = config.get("watch_ignore_dirs") or ""
+    for name in extra.split(","):
+        name = name.strip()
+        if name:
+            segments.append(name)
     return segments
 
 
 def _is_ignored(filepath: str) -> bool:
-    """Return True if filepath falls inside a passed or failed directory."""
+    """Return True if filepath falls inside an ignored directory."""
     normalized = os.path.normpath(filepath)
     for segment in _ignored_path_segments():
         if segment in normalized:

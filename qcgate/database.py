@@ -161,6 +161,11 @@ def initialise_database() -> None:
             "Glob pattern for incoming files. * is treated as the job name."
         ),
         (
+            "watch_ignore_dirs",
+            "temp,supplied",
+            "Comma-separated folder names within the watch tree to never ingest (e.g. temp,supplied)."
+        ),
+        (
             "failed_path",
             "/jobs/*/masters/failed",
             "Destination when a master is set to Failed. {job} substitution supported."
