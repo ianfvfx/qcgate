@@ -25,9 +25,10 @@ from qcgate.qc_checks import run_qc_checks_async
 
 logger = logging.getLogger(__name__)
 
-# Files with these extensions will be ignored by the watcher
-# (temp files, macOS metadata files, etc.)
-IGNORED_EXTENSIONS = {".tmp", ".part", ".ds_store", "._"}
+# Only files with these extensions will be ingested.
+# Anything else is silently skipped before any processing starts.
+ALLOWED_EXTENSIONS = {".mov", ".mxf"}
+
 IGNORED_PREFIXES = ("._", ".~")
 
 # Matches _YYYY_MM_DD_HHMM export timestamps appended by DCC tools.
@@ -132,7 +133,7 @@ def derive_subfolder(filepath: str, watch_path: str) -> Optional[str]:
 def should_ignore(filepath: str) -> bool:
     """
     Return True if this file should be silently ignored.
-    Covers temp files and macOS metadata files.
+    Only known video extensions are allowed through; everything else is skipped.
     """
     filename = os.path.basename(filepath).lower()
 
@@ -141,7 +142,7 @@ def should_ignore(filepath: str) -> bool:
             return True
 
     _, ext = os.path.splitext(filename)
-    if ext.lower() in IGNORED_EXTENSIONS:
+    if ext.lower() not in ALLOWED_EXTENSIONS:
         return True
 
     return False
