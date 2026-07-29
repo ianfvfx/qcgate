@@ -106,7 +106,7 @@ async def resolve_as_new_iteration(
             published_path = NULL,
             vault_path = NULL,
             vault_proxy_path = NULL,
-            updated_at = datetime('now')
+            updated_at = datetime('now', 'localtime')
         WHERE id = ?
     """, (new_iteration, master_id))
 
@@ -114,7 +114,7 @@ async def resolve_as_new_iteration(
         INSERT INTO iterations
             (master_id, iteration_number, status, exported_at, file_path,
              codec, resolution, framerate, duration, audio_channels, scan_type, loudness)
-        VALUES (?, ?, 'Ingesting', datetime('now'), ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, 'Ingesting', datetime('now', 'localtime'), ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         master_id, new_iteration, filepath,
         metadata.get("codec"), metadata.get("resolution"),

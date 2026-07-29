@@ -84,7 +84,7 @@ async def start_qc(master_id: int, request: Request, user: dict = Depends(requir
     conn = get_connection()
     conn.execute("""
         UPDATE masters
-        SET status = 'QC In Progress', qc_operator = ?, updated_at = datetime('now')
+        SET status = 'QC In Progress', qc_operator = ?, updated_at = datetime('now', 'localtime')
         WHERE id = ?
     """, (user["username"], master_id))
 
@@ -158,7 +158,7 @@ async def pass_master(master_id: int, request: Request, user: dict = Depends(req
     conn = get_connection()
     conn.execute("""
         UPDATE masters
-        SET status = 'Passed', published_path = ?, updated_at = datetime('now')
+        SET status = 'Passed', published_path = ?, updated_at = datetime('now', 'localtime')
         WHERE id = ?
     """, (published_path, master_id))
 
@@ -275,7 +275,7 @@ async def fail_master(
     conn = get_connection()
     conn.execute("""
         UPDATE masters
-        SET status = 'Failed', updated_at = datetime('now')
+        SET status = 'Failed', updated_at = datetime('now', 'localtime')
         WHERE id = ?
     """, (master_id,))
 
@@ -364,7 +364,7 @@ async def update_slate(master_id: int, request: Request, user: dict = Depends(re
     conn.execute("""
         UPDATE masters
         SET slate_title = ?, slate_version = ?, slate_clock = ?, slate_aspect = ?, slate_duration = ?,
-            updated_at = datetime('now')
+            updated_at = datetime('now', 'localtime')
         WHERE id = ?
     """, (
         form.get("slate_title") or None,
@@ -417,7 +417,7 @@ async def refresh_slate(master_id: int, request: Request, user: dict = Depends(r
     conn.execute("""
         UPDATE masters
         SET slate_title = ?, slate_version = ?, slate_clock = ?, slate_aspect = ?, slate_duration = ?,
-            updated_at = datetime('now')
+            updated_at = datetime('now', 'localtime')
         WHERE id = ?
     """, (
         slate.get("title"),
@@ -462,7 +462,7 @@ async def rename_master(
         raise HTTPException(status_code=400, detail="A master with that filename already exists in this job.")
 
     conn.execute("""
-        UPDATE masters SET filename = ?, updated_at = datetime('now') WHERE id = ?
+        UPDATE masters SET filename = ?, updated_at = datetime('now', 'localtime') WHERE id = ?
     """, (new_filename, master_id))
     conn.commit()
     conn.close()
@@ -529,7 +529,7 @@ async def rename_master_file(
                 (new_stored, master_id)
             )
 
-    conn.execute("UPDATE masters SET updated_at = datetime('now') WHERE id = ?", (master_id,))
+    conn.execute("UPDATE masters SET updated_at = datetime('now', 'localtime') WHERE id = ?", (master_id,))
     conn.commit()
     conn.close()
     logger.info(f"Master {master_id} file renamed to '{new_filename}' by {user['username']}")

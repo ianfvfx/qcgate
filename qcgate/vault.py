@@ -137,7 +137,7 @@ def vault_job(
             conn = get_connection()
             conn.execute("""
                 UPDATE masters
-                SET vault_path = ?, vault_proxy_path = ?, updated_at = datetime('now')
+                SET vault_path = ?, vault_proxy_path = ?, updated_at = datetime('now', 'localtime')
                 WHERE id = ?
             """, (vault_master_path, vault_proxy_path, master["id"]))
             conn.commit()

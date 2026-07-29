@@ -46,7 +46,7 @@ def initialise_database() -> None:
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
             name        TEXT NOT NULL UNIQUE,
             path        TEXT NOT NULL,
-            created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+            created_at  TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
         )
     """)
 
@@ -69,8 +69,8 @@ def initialise_database() -> None:
             vault_path          TEXT,
             vault_proxy_path    TEXT,
             subfolder           TEXT,
-            created_at          TEXT NOT NULL DEFAULT (datetime('now')),
-            updated_at          TEXT NOT NULL DEFAULT (datetime('now')),
+            created_at          TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+            updated_at          TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
             UNIQUE(job_id, filename)
         )
     """)
@@ -87,7 +87,7 @@ def initialise_database() -> None:
             iteration_number INTEGER NOT NULL,
             status           TEXT NOT NULL DEFAULT 'Awaiting QC',
             failure_reason   TEXT,
-            exported_at      TEXT NOT NULL DEFAULT (datetime('now')),
+            exported_at      TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
             file_path        TEXT,
             codec            TEXT,
             resolution       TEXT,
@@ -112,7 +112,7 @@ def initialise_database() -> None:
             username      TEXT NOT NULL UNIQUE,
             password_hash TEXT NOT NULL,
             role          TEXT NOT NULL DEFAULT 'techop',
-            created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+            created_at    TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
             CHECK(role IN ('techop', 'admin'))
         )
     """)
@@ -127,7 +127,7 @@ def initialise_database() -> None:
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
             master_id   INTEGER NOT NULL REFERENCES masters(id),
             filepath    TEXT NOT NULL,
-            detected_at TEXT NOT NULL DEFAULT (datetime('now')),
+            detected_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
             resolved    INTEGER NOT NULL DEFAULT 0,
             resolution  TEXT
         )
@@ -142,7 +142,7 @@ def initialise_database() -> None:
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
             name        TEXT NOT NULL UNIQUE,
             path        TEXT NOT NULL,
-            created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+            created_at  TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
         )
     """)
     cursor.execute("""

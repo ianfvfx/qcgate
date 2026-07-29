@@ -305,7 +305,7 @@ def create_new_iteration(
             slate_clock = ?,
             slate_aspect = ?,
             slate_duration = ?,
-            updated_at = datetime('now')
+            updated_at = datetime('now', 'localtime')
         WHERE id = ?
     """, (
         new_iteration,
@@ -322,7 +322,7 @@ def create_new_iteration(
         INSERT INTO iterations
             (master_id, iteration_number, status, exported_at, file_path,
              codec, resolution, framerate, duration, audio_channels, scan_type, loudness)
-        VALUES (?, ?, 'Ingesting', datetime('now'), ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, 'Ingesting', datetime('now', 'localtime'), ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         master_id,
         new_iteration,
@@ -456,7 +456,7 @@ def ingest_file(filepath: str) -> None:
             INSERT INTO iterations
                 (master_id, iteration_number, status, failure_reason, exported_at, file_path,
                  codec, resolution, framerate, duration, audio_channels, scan_type, loudness)
-            VALUES (?, 1, ?, ?, datetime('now'), ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, 1, ?, ?, datetime('now', 'localtime'), ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             master_id,
             initial_status,
