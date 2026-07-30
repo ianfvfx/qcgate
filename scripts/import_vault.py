@@ -234,10 +234,13 @@ def list_jobs(vault_root: str) -> None:
         print(f"ERROR: vault root does not exist: {vault_root}")
         sys.exit(1)
 
-    # Fetch all job names already in the DB for quick lookup
+    # Fetch job names that have at least one master record
     conn = get_connection()
     imported = {
-        row["name"] for row in conn.execute("SELECT name FROM jobs").fetchall()
+        row["name"] for row in conn.execute(
+            "SELECT DISTINCT j.name FROM jobs j "
+            "INNER JOIN masters m ON m.job_id = j.id"
+        ).fetchall()
     }
     conn.close()
 
