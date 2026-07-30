@@ -164,6 +164,24 @@
 
 {% block scripts %}
 <script>
+(function () {
+    var input = document.getElementById('search');
+    var form  = input ? input.closest('form') : null;
+    if (!input || !form) return;
+    var timer;
+    input.addEventListener('input', function () {
+        clearTimeout(timer);
+        timer = setTimeout(function () { form.submit(); }, 400);
+    });
+    // Focus at end of text on page load so cursor is in the right place
+    if (input.value) {
+        var v = input.value;
+        input.value = '';
+        input.value = v;
+    }
+    input.focus();
+})();
+
 function openPassModal(masterId) {
     document.getElementById('pass-form').action = '/masters/' + masterId + '/pass';
     document.getElementById('pass-modal').classList.add('open');
