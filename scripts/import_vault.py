@@ -14,23 +14,25 @@ Usage:
         Show what records would be created without writing anything.
 
     python3 scripts/import_vault.py --job JOB_NAME
-        Import records for one job and queue proxy generation.
+        Import records + run ffprobe + generate proxies for one job.
 
     python3 scripts/import_vault.py --job JOB_NAME --no-proxies
-        Import records only, skip proxy generation.
+        Import records and run ffprobe, but skip proxy generation.
 """
 
 import argparse
 import logging
 import os
 import sys
-from typing import List, Optional, Tuple
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Dict, List, Optional, Tuple
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from qcgate.database import get_connection
 from qcgate import config
 from qcgate.ingest import strip_export_timestamp, ALLOWED_EXTENSIONS
+from qcgate.ffprobe import extract_metadata
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +76,6 @@ def collect_video_files(job_vault_dir: str) -> List[str]:
     """
     results = []
     for dirpath, dirnames, filenames in os.walk(job_vault_dir):
-        # Prune hidden dirs and the proxies output dir in-place
         dirnames[:] = [
             d for d in dirnames
             if not d.startswith(".") and d.lower() != PROXY_DIR_NAME
@@ -89,16 +90,6 @@ def collect_video_files(job_vault_dir: str) -> List[str]:
 # ---------------------------------------------------------------------------
 # Database helpers
 # ---------------------------------------------------------------------------
-
-def _job_exists(job_name: str) -> Optional[int]:
-    """Return the job id if already in the DB, else None."""
-    conn = get_connection()
-    row = conn.execute(
-        "SELECT id FROM jobs WHERE name = ?", (job_name,)
-    ).fetchone()
-    conn.close()
-    return row["id"] if row else None
-
 
 def _create_job(job_name: str, job_path: str) -> int:
     conn = get_connection()
@@ -120,6 +111,7 @@ def _import_master(
     master_name: str,
     vault_path: str,
     subfolder: Optional[str],
+    metadata: Dict,
 ) -> Tuple[int, bool]:
     """
     Insert master + iteration records.
@@ -145,13 +137,60 @@ def _import_master(
 
     conn.execute("""
         INSERT INTO iterations
-            (master_id, iteration_number, status, exported_at, file_path)
-        VALUES (?, 1, 'Passed', datetime('now', 'localtime'), ?)
-    """, (master_id, vault_path))
+            (master_id, iteration_number, status, exported_at, file_path,
+             codec, resolution, framerate, duration, audio_channels, scan_type)
+        VALUES (?, 1, 'Passed', datetime('now', 'localtime'), ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        master_id,
+        vault_path,
+        metadata.get("codec"),
+        metadata.get("resolution"),
+        metadata.get("framerate"),
+        metadata.get("duration"),
+        metadata.get("audio_channels"),
+        metadata.get("scan_type"),
+    ))
 
     conn.commit()
     conn.close()
     return master_id, True
+
+
+# ---------------------------------------------------------------------------
+# Proxy generation (synchronous, with progress output)
+# ---------------------------------------------------------------------------
+
+def _generate_proxies(proxy_ids: List[Tuple[int, str]]) -> None:
+    """
+    Generate proxies for all (master_id, file_path) pairs.
+    Runs in a thread pool sized to proxy_concurrency config, waits for all
+    to complete before returning so the script doesn't exit prematurely.
+    """
+    from qcgate.proxy import generate_proxy
+
+    try:
+        concurrency = max(1, int(config.get("proxy_concurrency") or 2))
+    except (ValueError, TypeError):
+        concurrency = 2
+
+    total = len(proxy_ids)
+    done = 0
+
+    print(f"\n  Generating {total} proxies ({concurrency} at a time)...")
+
+    with ThreadPoolExecutor(max_workers=concurrency) as pool:
+        futures = {
+            pool.submit(generate_proxy, master_id, file_path): os.path.basename(file_path)
+            for master_id, file_path in proxy_ids
+        }
+        for future in as_completed(futures):
+            name = futures[future]
+            done += 1
+            try:
+                future.result()
+                print(f"  [{done}/{total}] proxy done: {name}")
+            except Exception as e:
+                print(f"  [{done}/{total}] proxy FAILED: {name}  ({e})")
 
 
 # ---------------------------------------------------------------------------
@@ -173,7 +212,6 @@ def import_job(job_name: str, vault_root: str, dry_run: bool, no_proxies: bool) 
     if dry_run:
         print("  [DRY RUN — nothing will be written]\n")
 
-    # Resolve master names upfront for preview
     rows = []
     for file_path in files:
         raw_name = os.path.basename(file_path)
@@ -193,32 +231,34 @@ def import_job(job_name: str, vault_root: str, dry_run: bool, no_proxies: bool) 
 
     print()
 
-    # Create job record
+    ffprobe_path = config.get("ffprobe_path") or "ffprobe"
     job_id = _create_job(job_name, job_vault_dir)
 
     created_count = 0
     skipped_count = 0
-    proxy_ids = []
+    proxy_ids = []  # type: List[Tuple[int, str]]
 
-    for file_path, master_name, subfolder in rows:
-        master_id, created = _import_master(job_id, master_name, file_path, subfolder)
+    for i, (file_path, master_name, subfolder) in enumerate(rows, 1):
+        print(f"  [{i}/{len(rows)}] {master_name}", end="", flush=True)
+
+        metadata = extract_metadata(file_path, ffprobe_path)
+        codec = metadata.get("codec") or ""
+        res = metadata.get("resolution") or ""
+        fps = metadata.get("framerate") or ""
+        print(f"  {codec}  {res}  {fps}")
+
+        master_id, created = _import_master(job_id, master_name, file_path, subfolder, metadata)
         if created:
             created_count += 1
             proxy_ids.append((master_id, file_path))
-            print(f"  + {master_name}")
         else:
             skipped_count += 1
-            print(f"  ~ {master_name}  (already exists, skipped)")
+            print(f"       (already exists, skipped)")
 
     print(f"\n  Created: {created_count}  Skipped: {skipped_count}")
 
     if not no_proxies and proxy_ids:
-        print(f"  Queuing {len(proxy_ids)} proxy generation tasks...")
-        # Import here to avoid loading proxy module until needed
-        from qcgate.proxy import generate_proxy_async
-        for master_id, file_path in proxy_ids:
-            generate_proxy_async(master_id, file_path)
-        print(f"  Proxies queued. Generation runs in the background.")
+        _generate_proxies(proxy_ids)
     elif no_proxies:
         print("  Proxy generation skipped (--no-proxies).")
 
@@ -234,7 +274,6 @@ def list_jobs(vault_root: str) -> None:
         print(f"ERROR: vault root does not exist: {vault_root}")
         sys.exit(1)
 
-    # Fetch job names that have at least one master record
     conn = get_connection()
     imported = {
         row["name"] for row in conn.execute(
