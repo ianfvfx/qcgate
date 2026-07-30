@@ -23,26 +23,55 @@ def _page_size() -> int:
 
 
 @router.get("/", response_class=HTMLResponse)
-async def dashboard(request: Request, user: dict = Depends(require_login), page: int = Query(1, ge=1)):
+async def dashboard(
+    request: Request,
+    user: dict = Depends(require_login),
+    page: int = Query(1, ge=1),
+    q: str = Query("", alias="q"),
+):
     page_size = _page_size()
     conn = get_connection()
 
-    total = conn.execute("SELECT COUNT(*) FROM masters").fetchone()[0]
+    search = q.strip()
 
-    offset = (page - 1) * page_size
-    masters = conn.execute("""
-        SELECT
-            m.id, m.filename, m.current_iteration, m.status,
-            m.qc_operator, m.job_id,
-            j.name AS job_name,
-            i.exported_at
-        FROM masters m
-        JOIN jobs j ON j.id = m.job_id
-        LEFT JOIN iterations i
-            ON i.master_id = m.id AND i.iteration_number = m.current_iteration
-        ORDER BY i.exported_at DESC
-        LIMIT ? OFFSET ?
-    """, (page_size, offset)).fetchall()
+    if search:
+        like = f"%{search}%"
+        total = conn.execute(
+            "SELECT COUNT(*) FROM masters m JOIN jobs j ON j.id = m.job_id "
+            "WHERE m.filename LIKE ? OR j.name LIKE ?",
+            (like, like)
+        ).fetchone()[0]
+        offset = (page - 1) * page_size
+        masters = conn.execute("""
+            SELECT
+                m.id, m.filename, m.current_iteration, m.status,
+                m.qc_operator, m.job_id,
+                j.name AS job_name,
+                i.exported_at
+            FROM masters m
+            JOIN jobs j ON j.id = m.job_id
+            LEFT JOIN iterations i
+                ON i.master_id = m.id AND i.iteration_number = m.current_iteration
+            WHERE m.filename LIKE ? OR j.name LIKE ?
+            ORDER BY i.exported_at DESC
+            LIMIT ? OFFSET ?
+        """, (like, like, page_size, offset)).fetchall()
+    else:
+        total = conn.execute("SELECT COUNT(*) FROM masters").fetchone()[0]
+        offset = (page - 1) * page_size
+        masters = conn.execute("""
+            SELECT
+                m.id, m.filename, m.current_iteration, m.status,
+                m.qc_operator, m.job_id,
+                j.name AS job_name,
+                i.exported_at
+            FROM masters m
+            JOIN jobs j ON j.id = m.job_id
+            LEFT JOIN iterations i
+                ON i.master_id = m.id AND i.iteration_number = m.current_iteration
+            ORDER BY i.exported_at DESC
+            LIMIT ? OFFSET ?
+        """, (page_size, offset)).fetchall()
 
     conflicts = conn.execute(
         "SELECT id FROM conflicts WHERE resolved = 0"
@@ -60,4 +89,5 @@ async def dashboard(request: Request, user: dict = Depends(require_login), page:
         "page": page,
         "total_pages": total_pages,
         "total": total,
+        "search": search,
     })

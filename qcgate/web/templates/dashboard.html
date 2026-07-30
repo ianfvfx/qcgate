@@ -13,14 +13,19 @@
 </div>
 {% endif %}
 
-<div class="search-bar">
+<form class="search-bar" method="get" action="/">
     <input
         type="text"
+        name="q"
         id="search"
         placeholder="Search by filename or project…"
-        oninput="filterTable(this.value)"
+        value="{{ search }}"
+        autocomplete="off"
     >
-</div>
+    {% if search %}
+    <a href="/" class="btn btn-secondary" style="white-space:nowrap;">✕ Clear</a>
+    {% endif %}
+</form>
 
 <div class="table-wrap">
     {% if masters %}
@@ -159,15 +164,6 @@
 
 {% block scripts %}
 <script>
-function filterTable(query) {
-    const q = query.toLowerCase();
-    document.querySelectorAll('#masters-table tbody tr').forEach(row => {
-        const filename = row.dataset.filename || '';
-        const job = row.dataset.job || '';
-        row.style.display = (filename.includes(q) || job.includes(q)) ? '' : 'none';
-    });
-}
-
 function openPassModal(masterId) {
     document.getElementById('pass-form').action = '/masters/' + masterId + '/pass';
     document.getElementById('pass-modal').classList.add('open');
