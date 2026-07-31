@@ -69,10 +69,12 @@ def _derive_subfolder(file_path: str, job_vault_dir: str) -> Optional[str]:
     return rel
 
 
-def collect_video_files(job_vault_dir: str) -> List[str]:
+def collect_video_files(job_vault_dir: str, reverse: bool = False) -> List[str]:
     """
     Recursively walk the job vault directory and return all qualifying video files.
     Skips hidden files, proxies/ subdirectories, and non-.mov/.mxf files.
+    Pass reverse=True to process newest filenames first (useful when multiple
+    files strip to the same master name — the latest timestamp wins).
     """
     results = []
     for dirpath, dirnames, filenames in os.walk(job_vault_dir):
@@ -84,7 +86,7 @@ def collect_video_files(job_vault_dir: str) -> List[str]:
             if _is_ignored_file(filename):
                 continue
             results.append(os.path.join(dirpath, filename))
-    return sorted(results)
+    return sorted(results, reverse=reverse)
 
 
 # ---------------------------------------------------------------------------
@@ -197,13 +199,13 @@ def _generate_proxies(proxy_ids: List[Tuple[int, str]]) -> None:
 # Core import logic
 # ---------------------------------------------------------------------------
 
-def import_job(job_name: str, vault_root: str, dry_run: bool, no_proxies: bool) -> None:
+def import_job(job_name: str, vault_root: str, dry_run: bool, no_proxies: bool, reverse: bool = False) -> None:
     job_vault_dir = os.path.join(vault_root, job_name)
     if not os.path.isdir(job_vault_dir):
         print(f"ERROR: {job_vault_dir} does not exist or is not a directory.")
         sys.exit(1)
 
-    files = collect_video_files(job_vault_dir)
+    files = collect_video_files(job_vault_dir, reverse=reverse)
     if not files:
         print(f"No qualifying video files found in {job_vault_dir}")
         return
@@ -323,6 +325,7 @@ def main() -> None:
     parser.add_argument("--job", metavar="JOB_NAME", help="Import records for this job.")
     parser.add_argument("--dry-run", action="store_true", help="Preview without writing anything.")
     parser.add_argument("--no-proxies", action="store_true", help="Skip proxy generation.")
+    parser.add_argument("--reverse", action="store_true", help="Process files in reverse alphabetical order (newest timestamp first). Use when duplicate master names exist and you want the latest file to win.")
     args = parser.parse_args()
 
     vault_root = config.get("mediavault_path")
@@ -333,7 +336,7 @@ def main() -> None:
     if args.list:
         list_jobs(vault_root)
     elif args.job:
-        import_job(args.job, vault_root, dry_run=args.dry_run, no_proxies=args.no_proxies)
+        import_job(args.job, vault_root, dry_run=args.dry_run, no_proxies=args.no_proxies, reverse=args.reverse)
     else:
         parser.print_help()
 
