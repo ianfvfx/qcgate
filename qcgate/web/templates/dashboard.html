@@ -9,7 +9,7 @@
 </div>
 {% endif %}
 
-<div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
+<div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap;justify-content:flex-end;">
     <a href="/?q={{ search }}" class="btn {% if not status_filter %}btn-primary{% else %}btn-secondary{% endif %}">All</a>
     <a href="/?filter=pending&q={{ search }}" class="btn {% if status_filter == 'pending' %}btn-primary{% else %}btn-secondary{% endif %}">Pending</a>
     <a href="/?filter=failed&q={{ search }}" class="btn {% if status_filter == 'failed' %}btn-primary{% else %}btn-secondary{% endif %}">Failed</a>
