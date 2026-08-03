@@ -22,56 +22,63 @@ def _page_size() -> int:
         return 50
 
 
+_PENDING_STATUSES = ("Ingesting", "Awaiting QC", "Flagged", "QC In Progress")
+
+
 @router.get("/", response_class=HTMLResponse)
 async def dashboard(
     request: Request,
     user: dict = Depends(require_login),
     page: int = Query(1, ge=1),
     q: str = Query("", alias="q"),
+    status_filter: str = Query("", alias="filter"),
 ):
     page_size = _page_size()
     conn = get_connection()
 
     search = q.strip()
+    sf = status_filter.strip().lower()
+
+    # Build WHERE clauses
+    conditions = []
+    params = []
+
+    if sf == "pending":
+        placeholders = ",".join("?" * len(_PENDING_STATUSES))
+        conditions.append(f"m.status IN ({placeholders})")
+        params.extend(_PENDING_STATUSES)
+    elif sf == "failed":
+        conditions.append("m.status = 'Failed'")
+    elif sf == "passed":
+        conditions.append("m.status = 'Passed'")
 
     if search:
         like = f"%{search}%"
-        total = conn.execute(
-            "SELECT COUNT(*) FROM masters m JOIN jobs j ON j.id = m.job_id "
-            "WHERE m.filename LIKE ? OR j.name LIKE ?",
-            (like, like)
-        ).fetchone()[0]
-        offset = (page - 1) * page_size
-        masters = conn.execute("""
-            SELECT
-                m.id, m.filename, m.current_iteration, m.status,
-                m.qc_operator, m.job_id,
-                j.name AS job_name,
-                i.exported_at
-            FROM masters m
-            JOIN jobs j ON j.id = m.job_id
-            LEFT JOIN iterations i
-                ON i.master_id = m.id AND i.iteration_number = m.current_iteration
-            WHERE m.filename LIKE ? OR j.name LIKE ?
-            ORDER BY i.exported_at DESC
-            LIMIT ? OFFSET ?
-        """, (like, like, page_size, offset)).fetchall()
-    else:
-        total = conn.execute("SELECT COUNT(*) FROM masters").fetchone()[0]
-        offset = (page - 1) * page_size
-        masters = conn.execute("""
-            SELECT
-                m.id, m.filename, m.current_iteration, m.status,
-                m.qc_operator, m.job_id,
-                j.name AS job_name,
-                i.exported_at
-            FROM masters m
-            JOIN jobs j ON j.id = m.job_id
-            LEFT JOIN iterations i
-                ON i.master_id = m.id AND i.iteration_number = m.current_iteration
-            ORDER BY i.exported_at DESC
-            LIMIT ? OFFSET ?
-        """, (page_size, offset)).fetchall()
+        conditions.append("(m.filename LIKE ? OR j.name LIKE ?)")
+        params.extend([like, like])
+
+    where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+
+    total = conn.execute(
+        f"SELECT COUNT(*) FROM masters m JOIN jobs j ON j.id = m.job_id {where}",
+        params
+    ).fetchone()[0]
+
+    offset = (page - 1) * page_size
+    masters = conn.execute(f"""
+        SELECT
+            m.id, m.filename, m.current_iteration, m.status,
+            m.qc_operator, m.job_id,
+            j.name AS job_name,
+            i.exported_at
+        FROM masters m
+        JOIN jobs j ON j.id = m.job_id
+        LEFT JOIN iterations i
+            ON i.master_id = m.id AND i.iteration_number = m.current_iteration
+        {where}
+        ORDER BY i.exported_at DESC
+        LIMIT ? OFFSET ?
+    """, params + [page_size, offset]).fetchall()
 
     conflicts = conn.execute(
         "SELECT id FROM conflicts WHERE resolved = 0"
@@ -90,4 +97,5 @@ async def dashboard(
         "total_pages": total_pages,
         "total": total,
         "search": search,
+        "status_filter": sf,
     })

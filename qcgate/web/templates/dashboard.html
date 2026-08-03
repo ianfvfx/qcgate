@@ -2,10 +2,6 @@
 {% block title %}QCGate — Dashboard{% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <div class="page-title">Masters</div>
-</div>
-
 {% if conflicts %}
 <div class="alert alert-warning">
     ⚠ {{ conflicts|length }} unresolved filename conflict{% if conflicts|length != 1 %}s{% endif %} require attention.
@@ -13,7 +9,15 @@
 </div>
 {% endif %}
 
+<div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
+    <a href="/?q={{ search }}" class="btn {% if not status_filter %}btn-primary{% else %}btn-secondary{% endif %}">All</a>
+    <a href="/?filter=pending&q={{ search }}" class="btn {% if status_filter == 'pending' %}btn-primary{% else %}btn-secondary{% endif %}">Pending</a>
+    <a href="/?filter=failed&q={{ search }}" class="btn {% if status_filter == 'failed' %}btn-primary{% else %}btn-secondary{% endif %}">Failed</a>
+    <a href="/?filter=passed&q={{ search }}" class="btn {% if status_filter == 'passed' %}btn-primary{% else %}btn-secondary{% endif %}">Passed</a>
+</div>
+
 <form class="search-bar" method="get" action="/">
+    {% if status_filter %}<input type="hidden" name="filter" value="{{ status_filter }}">{% endif %}
     <input
         type="text"
         name="q"
@@ -23,7 +27,7 @@
         autocomplete="off"
     >
     {% if search %}
-    <a href="/" class="btn btn-secondary" style="white-space:nowrap;">✕ Clear</a>
+    <a href="/?filter={{ status_filter }}" class="btn btn-secondary" style="white-space:nowrap;">✕ Clear</a>
     {% endif %}
 </form>
 
@@ -115,12 +119,12 @@
     <span>{{ total }} masters &mdash; page {{ page }} of {{ total_pages }}</span>
     <div style="display:flex;gap:6px;">
         {% if page > 1 %}
-        <a href="/?page={{ page - 1 }}" class="btn btn-neutral btn-sm">← Prev</a>
+        <a href="/?page={{ page - 1 }}{% if status_filter %}&filter={{ status_filter }}{% endif %}{% if search %}&q={{ search }}{% endif %}" class="btn btn-neutral btn-sm">← Prev</a>
         {% else %}
         <button class="btn btn-neutral btn-sm" disabled>← Prev</button>
         {% endif %}
         {% if page < total_pages %}
-        <a href="/?page={{ page + 1 }}" class="btn btn-neutral btn-sm">Next →</a>
+        <a href="/?page={{ page + 1 }}{% if status_filter %}&filter={{ status_filter }}{% endif %}{% if search %}&q={{ search }}{% endif %}" class="btn btn-neutral btn-sm">Next →</a>
         {% else %}
         <button class="btn btn-neutral btn-sm" disabled>Next →</button>
         {% endif %}
