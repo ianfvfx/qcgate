@@ -5,9 +5,9 @@ routes/masters.py — Master detail view and status action endpoints.
 import os
 import json
 import logging
-from typing import Optional
+from typing import Optional, Tuple
 from fastapi import APIRouter, Request, Depends, Form, HTTPException
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
 
@@ -182,6 +182,58 @@ async def pass_master(master_id: int, request: Request, user: dict = Depends(req
 # Proxy streaming
 # ---------------------------------------------------------------------------
 
+def _parse_range(range_header: str, file_size: int) -> Tuple[int, int]:
+    """Parse a Range: bytes=start-end header. Returns (start, end) inclusive."""
+    unit, _, rng = range_header.partition("=")
+    start_str, _, end_str = rng.partition("-")
+    start = int(start_str) if start_str else 0
+    end = int(end_str) if end_str else file_size - 1
+    end = min(end, file_size - 1)
+    return start, end
+
+
+def _range_response(path: str, request: Request) -> StreamingResponse:
+    """Serve a file with HTTP range request support for browser seeking."""
+    file_size = os.path.getsize(path)
+    range_header = request.headers.get("range")
+
+    if range_header:
+        start, end = _parse_range(range_header, file_size)
+        chunk_size = end - start + 1
+
+        def _iter():
+            with open(path, "rb") as f:
+                f.seek(start)
+                remaining = chunk_size
+                while remaining > 0:
+                    data = f.read(min(64 * 1024, remaining))
+                    if not data:
+                        break
+                    remaining -= len(data)
+                    yield data
+
+        headers = {
+            "Content-Range": "bytes {}-{}/{}".format(start, end, file_size),
+            "Accept-Ranges": "bytes",
+            "Content-Length": str(chunk_size),
+        }
+        return StreamingResponse(_iter(), status_code=206, headers=headers, media_type="video/mp4")
+
+    def _iter_full():
+        with open(path, "rb") as f:
+            while True:
+                data = f.read(64 * 1024)
+                if not data:
+                    break
+                yield data
+
+    headers = {
+        "Accept-Ranges": "bytes",
+        "Content-Length": str(file_size),
+    }
+    return StreamingResponse(_iter_full(), status_code=200, headers=headers, media_type="video/mp4")
+
+
 @router.get("/masters/{master_id}/proxy")
 async def stream_proxy(master_id: int, request: Request, user: dict = Depends(require_login)):
     """
@@ -208,13 +260,7 @@ async def stream_proxy(master_id: int, request: Request, user: dict = Depends(re
     if not proxy_path:
         raise HTTPException(status_code=404, detail="Proxy file not found on disk.")
 
-    from fastapi.responses import FileResponse
-    return FileResponse(proxy_path, media_type="video/mp4")
-    if not os.path.exists(proxy_path):
-        raise HTTPException(status_code=404, detail="Proxy file not found on disk.")
-
-    from fastapi.responses import FileResponse
-    return FileResponse(proxy_path, media_type="video/mp4")
+    return _range_response(proxy_path, request)
 
 
 # ---------------------------------------------------------------------------
