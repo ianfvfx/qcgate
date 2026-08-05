@@ -52,8 +52,8 @@ async def dashboard(
     elif sf == "passed":
         conditions.append("m.status = 'Passed'")
 
-    if search:
-        like = f"%{search}%"
+    for word in search.split():
+        like = f"%{word}%"
         conditions.append("(m.filename LIKE ? OR j.name LIKE ?)")
         params.extend([like, like])
 
