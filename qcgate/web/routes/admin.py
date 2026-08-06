@@ -224,64 +224,6 @@ async def delete_preset(
 # Master record deletion
 # ---------------------------------------------------------------------------
 
-@router.post("/masters/manual-entry")
-async def manual_entry(
-    request: Request,
-    user: dict = Depends(require_admin),
-    job_name: str = Form(...),
-    master_name: str = Form(...),
-    file_path: str = Form(...),
-):
-    job_name = job_name.strip()
-    master_name = master_name.strip()
-    file_path = file_path.strip()
-
-    if not job_name or not master_name or not file_path:
-        return RedirectResponse(url="/admin?error=All+fields+are+required", status_code=302)
-
-    conn = get_connection()
-
-    # Get or create job
-    conn.execute(
-        "INSERT OR IGNORE INTO jobs (name, path) VALUES (?, ?)",
-        (job_name, "")
-    )
-    conn.commit()
-    job = conn.execute("SELECT id FROM jobs WHERE name = ?", (job_name,)).fetchone()
-    job_id = job["id"]
-
-    # Check for existing master with same name in this job
-    existing = conn.execute(
-        "SELECT id FROM masters WHERE job_id = ? AND filename = ?",
-        (job_id, master_name)
-    ).fetchone()
-    if existing:
-        conn.close()
-        return RedirectResponse(
-            url="/admin?error=A+master+with+that+name+already+exists+in+this+job",
-            status_code=302
-        )
-
-    cursor = conn.execute("""
-        INSERT INTO masters
-            (job_id, filename, current_iteration, status, published_path, vault_path)
-        VALUES (?, ?, 1, 'Passed', ?, ?)
-    """, (job_id, master_name, file_path, file_path))
-    master_id = cursor.lastrowid
-
-    conn.execute("""
-        INSERT INTO iterations
-            (master_id, iteration_number, status, exported_at, file_path)
-        VALUES (?, 1, 'Passed', datetime('now', 'localtime'), ?)
-    """, (master_id, file_path))
-
-    conn.commit()
-    conn.close()
-
-    logger.info(f"Manual entry created: '{master_name}' in job '{job_name}' by {user['username']}")
-    return RedirectResponse(url="/admin?message=Master+record+created", status_code=302)
-
-
 @router.post("/masters/{master_id}/delete")
 async def delete_master(
     master_id: int,

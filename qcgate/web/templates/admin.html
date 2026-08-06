@@ -14,35 +14,6 @@
 {% endif %}
 
 <!-- ------------------------------------------------------------------ -->
-<!-- MANUAL ENTRY                                                        -->
-<!-- ------------------------------------------------------------------ -->
-<div class="detail-card" style="margin-bottom:24px;">
-    <h4>Manual Entry</h4>
-    <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px;">
-        Add a master record directly to the database. The entry will be set to Passed with no QC checks or proxy generation. Path may be a file or a folder (e.g. an image sequence).
-    </p>
-    <form method="post" action="/admin/masters/manual-entry">
-        <div style="display:grid;grid-template-columns:1fr 1fr 2fr auto;gap:8px;align-items:end;">
-            <div>
-                <label style="display:block;font-size:12px;color:var(--text-muted);margin-bottom:4px;">Job Name</label>
-                <input type="text" name="job_name" required placeholder="e.g. myProject_01234" style="width:100%;box-sizing:border-box;">
-            </div>
-            <div>
-                <label style="display:block;font-size:12px;color:var(--text-muted);margin-bottom:4px;">Master Name</label>
-                <input type="text" name="master_name" required placeholder="e.g. myProject_30s_16x9.mov" style="width:100%;box-sizing:border-box;">
-            </div>
-            <div>
-                <label style="display:block;font-size:12px;color:var(--text-muted);margin-bottom:4px;">File or Folder Path</label>
-                <input type="text" name="file_path" required placeholder="e.g. /media/mediaVault/myProject_01234/sequence/" style="width:100%;box-sizing:border-box;">
-            </div>
-            <div>
-                <button type="submit" class="btn btn-primary">Add</button>
-            </div>
-        </div>
-    </form>
-</div>
-
-<!-- ------------------------------------------------------------------ -->
 <!-- USERS                                                               -->
 <!-- ------------------------------------------------------------------ -->
 <div class="detail-card" style="margin-bottom:24px;">

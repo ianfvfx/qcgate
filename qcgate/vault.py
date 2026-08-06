@@ -117,14 +117,11 @@ def vault_job(
 
             os.makedirs(master_dest_dir, exist_ok=True)
 
-            # Copy master — file or directory (e.g. image sequence)
-            source_filename = os.path.basename(published_path.rstrip("/"))
+            # Copy master file — preserve the full timestamped filename from published_path
+            source_filename = os.path.basename(published_path)
             vault_master_path = os.path.join(master_dest_dir, source_filename)
             logger.info(f"Copying master to vault: {published_path} -> {vault_master_path}")
-            if os.path.isdir(published_path):
-                shutil.copytree(published_path, vault_master_path)
-            else:
-                shutil.copy2(published_path, vault_master_path)
+            shutil.copy2(published_path, vault_master_path)
 
             # Copy proxy if it exists
             vault_proxy_path = None
