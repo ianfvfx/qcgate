@@ -26,14 +26,32 @@ def _page_size() -> int:
 
 
 @router.get("/status", response_class=HTMLResponse)
-async def stakeholder_dashboard(request: Request, page: int = Query(1, ge=1)):
+async def stakeholder_dashboard(
+    request: Request,
+    page: int = Query(1, ge=1),
+    q: str = Query("", alias="q"),
+):
     page_size = _page_size()
     conn = get_connection()
 
-    total = conn.execute("SELECT COUNT(*) FROM masters").fetchone()[0]
+    search = q.strip()
+    conditions = []
+    params = []
+
+    for word in search.split():
+        like = f"%{word}%"
+        conditions.append("(m.filename LIKE ? OR j.name LIKE ?)")
+        params.extend([like, like])
+
+    where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+
+    total = conn.execute(
+        f"SELECT COUNT(*) FROM masters m JOIN jobs j ON j.id = m.job_id {where}",
+        params
+    ).fetchone()[0]
 
     offset = (page - 1) * page_size
-    masters = conn.execute("""
+    masters = conn.execute(f"""
         SELECT
             m.id, m.filename, m.current_iteration, m.status, m.job_id,
             m.qc_operator,
@@ -43,9 +61,10 @@ async def stakeholder_dashboard(request: Request, page: int = Query(1, ge=1)):
         JOIN jobs j ON j.id = m.job_id
         LEFT JOIN iterations i
             ON i.master_id = m.id AND i.iteration_number = m.current_iteration
+        {where}
         ORDER BY i.exported_at DESC
         LIMIT ? OFFSET ?
-    """, (page_size, offset)).fetchall()
+    """, params + [page_size, offset]).fetchall()
     conn.close()
 
     total_pages = max(1, (total + page_size - 1) // page_size)
@@ -57,6 +76,7 @@ async def stakeholder_dashboard(request: Request, page: int = Query(1, ge=1)):
         "page": page,
         "total_pages": total_pages,
         "total": total,
+        "search": search,
     })
 
 
