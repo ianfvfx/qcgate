@@ -23,8 +23,10 @@
             <button class="btn btn-success" onclick="openPassModal()">Pass</button>
             <button class="btn btn-danger" onclick="openFailModal()">Fail</button>
         {% endif %}
+        {% if not master.vault_path %}
         <button class="btn btn-neutral" onclick="openRenameModal()">Rename Master</button>
         <button class="btn btn-neutral" onclick="openRenameFileModal()">Rename File</button>
+        {% endif %}
     </div>
 </div>
 
