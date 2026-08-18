@@ -51,6 +51,8 @@ async def dashboard(
         conditions.append("m.status = 'Failed'")
     elif sf == "passed":
         conditions.append("m.status = 'Passed'")
+    elif sf == "unvaulted":
+        conditions.append("m.status = 'Passed' AND m.vault_path IS NULL")
 
     for word in search.split():
         like = f"%{word}%"

@@ -14,6 +14,7 @@
     <a href="/?filter=pending&q={{ search }}" class="btn {% if status_filter == 'pending' %}btn-primary{% else %}btn-secondary{% endif %}">Pending</a>
     <a href="/?filter=failed&q={{ search }}" class="btn {% if status_filter == 'failed' %}btn-primary{% else %}btn-secondary{% endif %}">Failed</a>
     <a href="/?filter=passed&q={{ search }}" class="btn {% if status_filter == 'passed' %}btn-primary{% else %}btn-secondary{% endif %}">Passed</a>
+    <a href="/?filter=unvaulted&q={{ search }}" class="btn {% if status_filter == 'unvaulted' %}btn-primary{% else %}btn-secondary{% endif %}">Unvaulted</a>
 </div>
 
 <form class="search-bar" method="get" action="/">
