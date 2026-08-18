@@ -170,7 +170,7 @@ def vault_job(
             job_path = job["path"] or ""
             export_dir = os.path.join(job_path, "library", "mastersExport")
             os.makedirs(export_dir, exist_ok=True)
-            today = datetime.now().strftime("%Y_%m_%d")
+            today = datetime.now().strftime("%Y_%m_%d_%H%M")
             csv_filename = "{}_masters_{}.csv".format(job_name, today)
             csv_path = os.path.join(export_dir, csv_filename)
             fieldnames = ["Event Date", "Clocknumber", "Duration", "Prog Title", "Aspect", "Event Type"]
