@@ -2,147 +2,94 @@
 
 ---
 
-## macOS Setup (Development / Test)
+## Prerequisites
 
-These instructions are for running QCGate locally on a Mac workstation,
-connecting to real job storage on the network.
+**Python 3.9** — this is a hard constraint. Do not use 3.10 or later.
 
-### 1. Prerequisites
-
-**Python 3.11 or later.** Check your version:
+**ffmpeg and ffprobe:**
 
 ```bash
-python3 --version
-```
+# Ubuntu/Debian
+sudo apt install ffmpeg
 
-If you need to install or upgrade:
-
-```bash
-brew install python
-```
-
-**ffmpeg** (includes ffprobe):
-
-```bash
+# macOS
 brew install ffmpeg
 ```
 
-Confirm ffprobe is available and note its path — you'll need this later:
-
+Note the paths after installation — you will need them:
 ```bash
-which ffprobe
 which ffmpeg
+which ffprobe
 ```
 
-On a Mac with Apple Silicon and Homebrew these will likely be:
-```
-/opt/homebrew/bin/ffprobe
-/opt/homebrew/bin/ffmpeg
-```
-
----
-
-### 2. Project folder
-
-All QCGate files live at:
-
-```
-/Users/ian.fallon/Documents/qcgate/
-```
-
-Open this folder in PyCharm: **File → Open → select the qcgate folder**.
-
----
-
-### 3. Create a virtual environment
-
-In the PyCharm terminal:
+**Tesseract OCR:**
 
 ```bash
-cd /Users/ian.fallon/Documents/qcgate
-python3 -m venv venv
+# Ubuntu/Debian
+sudo apt install tesseract-ocr
+
+# macOS
+brew install tesseract
+```
+
+**OpenCV system dependencies (Linux only):**
+
+```bash
+sudo apt install libgl1
+```
+
+---
+
+## Installation
+
+### 1. Clone the repository
+
+```bash
+git clone https://github.com/ianfvfx/qcgate.git /opt/qcgate
+cd /opt/qcgate
+```
+
+### 2. Create a virtual environment
+
+```bash
+python3.9 -m venv venv
 source venv/bin/activate
 ```
 
-You should see `(venv)` at the start of your terminal prompt.
-
----
-
-### 4. Install dependencies
+### 3. Install Python dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
----
-
-### 5. Create your .env file
+### 4. Create the .env file
 
 ```bash
 cp .env.example .env
 ```
 
-Open `.env` in PyCharm and set it to:
+Edit `.env`:
 
 ```
-SECRET_KEY=change-me-to-a-long-random-string
+SECRET_KEY=replace-with-a-long-random-string
 DATABASE_PATH=data/qcgate.db
 ```
 
-Replace `change-me-to-a-long-random-string` with any long random string of
-your choice. This is used to sign login sessions — keep it private.
+`SECRET_KEY` signs login session cookies — use a long random string and keep it private.
 
----
+### 5. Initialise the database
 
-### 6. Initialise the database
-
-```bash
-python scripts/init_db.py
-```
-
-You will be prompted to create an admin username and password.
-This creates `data/qcgate.db` and all tables.
-
----
-
-### 7. Verify the installation
-
-Run this to confirm the database and config are correct:
+Run once only. Creates `data/qcgate.db` and all tables, and prompts you to create the first admin account.
 
 ```bash
-python3 - <<'EOF'
-import sqlite3
-conn = sqlite3.connect("data/qcgate.db")
-tables = conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
-print("Tables:", [t[0] for t in tables])
-config = conn.execute("SELECT key, value FROM config").fetchall()
-print("\nConfig:")
-for row in config:
-    print(f"  {row[0]}: {row[1]}")
-conn.close()
-EOF
+python3 scripts/init_db.py
 ```
 
-Expected output:
+**Never run `init_db.py` again on a database that contains real data** — it will not overwrite existing tables, but any future changes to the schema must be applied as migrations. See QCGATE.md for the migration pattern.
 
-```
-Tables: ['jobs', 'masters', 'iterations', 'users', 'conflicts', 'config']
+### 6. Configure paths
 
-Config:
-  watch_path: /jobs/*/masters/for_qc
-  failed_path: /jobs/*/masters/failed
-  passed_path: /jobs/*/masters/passed
-  ffmpeg_path: /usr/bin/ffmpeg
-  ffprobe_path: /usr/bin/ffprobe
-```
-
-The config values shown are defaults — you will update them in the next step.
-
----
-
-### 8. Update config for the test environment
-
-Run this script to set the correct paths for the test environment:
+Log in to the admin panel at `http://localhost:8000/admin` after first run, or set config directly:
 
 ```bash
 python3 - <<'EOF'
@@ -150,49 +97,164 @@ import sys
 sys.path.insert(0, ".")
 from qcgate import config
 
-config.set("watch_path", "/Volumes/jobs/blackKiteStudios_01234/library/mastersExport/forQC")
-config.set("failed_path", "/Volumes/jobs/blackKiteStudios_01234/library/mastersExport/failed")
-config.set("passed_path", "/Volumes/jobs/techOpsTestProject_03991/library/mastersExport/{job}")
-config.set("ffprobe_path", "/opt/homebrew/bin/ffprobe")
-config.set("ffmpeg_path", "/opt/homebrew/bin/ffmpeg")
-
-print("Config updated:")
-for key, data in config.get_all().items():
-    print(f"  {key}: {data['value']}")
+config.set("watch_path",      "/media/jobs/*/library/qcgate")
+config.set("passed_path",     "/media/jobs/*/library/qcgate/passed")
+config.set("failed_path",     "/media/jobs/*/library/qcgate/failed")
+config.set("mediavault_path", "/media/mediaVault")
+config.set("ffmpeg_path",     "/usr/bin/ffmpeg")
+config.set("ffprobe_path",    "/usr/bin/ffprobe")
+config.set("tesseract_path",  "/usr/bin/tesseract")
+config.set("qc_frames_path",  "/opt/qcgate_qc_frames")
+print("Done.")
 EOF
 ```
 
-If your ffmpeg/ffprobe are not at `/opt/homebrew/bin/`, replace those paths
-with the output of `which ffprobe` and `which ffmpeg` from Step 1.
+Adjust paths to match your environment. The `*` in watch/passed/failed paths is replaced with the job folder name at runtime.
 
 ---
 
-### 9. Confirm the watch folder exists
+## Running
 
-QCGate will not create folders on the network — they must already exist.
-Confirm the following paths are accessible from your Mac:
+### Development
 
 ```bash
-ls /Volumes/jobs/blackKiteStudios_01234/library/mastersExport/forQC
-ls /Volumes/jobs/blackKiteStudios_01234/library/mastersExport/failed
-ls /Volumes/jobs/techOpsTestProject_03991/library/mastersExport/
+source venv/bin/activate
+
+# Web server (with auto-reload)
+uvicorn qcgate.web.app:app --reload --port 8000
+
+# File watcher (separate terminal)
+python -m qcgate.watcher
 ```
 
-If any of these return `No such file or directory`, create them:
+### Production (systemd)
+
+Two systemd service files are provided in `systemd/`. Install them:
 
 ```bash
-mkdir -p /Volumes/jobs/blackKiteStudios_01234/library/mastersExport/forQC
-mkdir -p /Volumes/jobs/blackKiteStudios_01234/library/mastersExport/failed
-mkdir -p /Volumes/jobs/techOpsTestProject_03991/library/mastersExport/
+sudo cp systemd/qcgate-web.service /etc/systemd/system/
+sudo cp systemd/qcgate-watcher.service /etc/systemd/system/
+
+sudo systemctl daemon-reload
+sudo systemctl enable qcgate-web qcgate-watcher
+sudo systemctl start qcgate-web qcgate-watcher
+```
+
+Check status:
+
+```bash
+sudo systemctl status qcgate-web
+sudo systemctl status qcgate-watcher
+```
+
+View logs:
+
+```bash
+journalctl -u qcgate-web -f
+journalctl -u qcgate-watcher -f
+```
+
+The web server binds to `0.0.0.0:8000`. Put nginx or another reverse proxy in front for production use.
+
+---
+
+## Linux inotify Limits
+
+If running on Linux with a large job tree (many subdirectories), raise the inotify limits:
+
+```bash
+echo fs.inotify.max_user_watches=524288 | sudo tee -a /etc/sysctl.conf
+echo fs.inotify.max_user_instances=512  | sudo tee -a /etc/sysctl.conf
+sudo sysctl -p
 ```
 
 ---
 
-## Next Steps
+## Importing Historical Vault Assets
 
-Once setup is complete and verified, the next phase covers:
+If you have existing assets in the mediaVault that predate QCGate, use the import script to register them without moving or altering any files:
 
-- The file watcher (`qcgate/watcher.py`)
-- ffprobe metadata extraction (`qcgate/ffprobe.py`)
-- File ingest logic (`qcgate/ingest.py`)
-- File movement logic (`qcgate/filemover.py`)
+```bash
+# List all jobs in the vault with file counts and import status
+python3 scripts/import_vault.py --list
+
+# Preview what would be imported (no writes)
+python3 scripts/import_vault.py --job JOB_NAME --dry-run
+
+# Import records and generate proxies
+python3 scripts/import_vault.py --job JOB_NAME
+
+# Import without generating proxies
+python3 scripts/import_vault.py --job JOB_NAME --no-proxies
+
+# Newest file wins on duplicate master names
+python3 scripts/import_vault.py --job JOB_NAME --reverse
+```
+
+Imported masters are created with `status = Passed` and `vault_path` set to the file's location in the vault.
+
+---
+
+## Database Backup
+
+Safe live backup using Python's built-in SQLite backup API:
+
+```bash
+cd /opt/qcgate && python3 - <<'EOF'
+import sqlite3
+from datetime import date
+src = sqlite3.connect("data/qcgate.db")
+dst = sqlite3.connect(f"data/qcgate.db.backup_{date.today().strftime('%Y%m%d')}")
+src.backup(dst)
+dst.close()
+src.close()
+print("Done.")
+EOF
+```
+
+---
+
+## Updating
+
+```bash
+cd /opt/qcgate
+git pull
+source venv/bin/activate
+pip install -r requirements.txt
+
+sudo systemctl restart qcgate-web qcgate-watcher
+```
+
+If the update includes schema changes, a migration snippet will be provided alongside it. Run the migration before restarting the services.
+
+---
+
+## Troubleshooting
+
+**Web server won't start — port already in use:**
+```bash
+sudo lsof -i :8000
+sudo kill -9 <PID>
+```
+
+**Watcher not picking up files:**
+- Confirm the watch path glob resolves correctly: the `*` must match the job folder name
+- Check inotify limits (see above)
+- Check the watcher log: `journalctl -u qcgate-watcher -f`
+
+**Proxies not generating:**
+- Confirm `ffmpeg_path` in config points to a valid ffmpeg binary
+- Check `proxy_concurrency` — if set to 0 no proxies will generate
+
+**OCR returning no text:**
+- Confirm `tesseract_path` in config points to a valid Tesseract binary
+- Tesseract must have English language data installed (`tesseract-ocr-eng` on Ubuntu)
+
+**Authentication issues after dependency changes:**
+- Do not upgrade `bcrypt` or `passlib`. The pinned versions (`bcrypt==4.0.1`, `passlib==1.7.4`) are required. Upgrading bcrypt to 5.x will break password verification on Python 3.9.
+
+---
+
+## Full Technical Reference
+
+See **QCGATE.md** for the complete technical reference, including: database schema, all web routes, configuration keys, architecture overview, and known issues.

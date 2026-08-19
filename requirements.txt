@@ -6,8 +6,8 @@ watchdog==4.0.1
 itsdangerous==2.2.0
 passlib[bcrypt]==1.7.4
 bcrypt==4.0.1
-aiosqlite==0.20.0
 python-dotenv==1.0.1
 pytesseract==0.3.10
-Pillow==10.3.0opencv-python==4.9.0.80
+Pillow==10.3.0
+opencv-python==4.9.0.80
 numpy==1.26.4
